@@ -1,0 +1,148 @@
+function results = run(datasets, years, elasticities, varargin)
+%TARIFFWAR.RUN  Run tariff war analysis.
+%
+%   tariffwar.run('wiod', 2014, 'L21')
+%   tariffwar.run('wiod', 2014, 'L21', 'Algorithm', 'levenberg-marquardt')
+%   tariffwar.run('wiod', 2014, 'L21', 'T0_scale', [0.8, 1.2, 1.5])
+%   tariffwar.run({'wiod','icio'}, 2000:2014, {'L21','U4'})
+%
+%   Positional args:
+%     datasets     - string or cell ('wiod', 'icio', 'itpd')
+%     years        - numeric vector (e.g. 2014 or 2000:2014)
+%     elasticities - abbreviation or cell. Available sources:
+%
+%       Abbrev  Full name                        Paper
+%       ------  ---------                        -----
+%       L21     lashkaripour_2021                Lashkaripour (2021, JIE)
+%       U4      uniform_4                        Simonovska & Waugh (2014, JIE)
+%       CP      caliendo_parro_2015              Caliendo & Parro (2015, ReStud)
+%       BSY     bagwell_staiger_yurukoglu_2021   BSY (2021, Econometrica)
+%       GYY     giri_yi_yilmazkuday_2021         GYY (2021, JIE)
+%       Shap    shapiro_2016                     Shapiro (2016, AEJ)
+%       FGO     fontagne_2022                    Fontagne et al. (2022, JIE)
+%       LL      lashkaripour_lugovskyy_2023      LL (2023, AER)
+%
+%   Year coverage (from prebuilt .mat files):
+%     WIOD:  2000-2014  (44 countries, 16 sectors)
+%     ICIO:  2011-2022  (85 countries, 28 sectors)
+%     ITPD:  2000-2019  (135 countries, 154 sectors)
+%   Years without a .mat file are silently skipped.
+%
+%   Name-value options:
+%     'Algorithm'   - fsolve algorithm (default: 'trust-region-dogleg')
+%     'MaxIter'     - max iterations (default: Inf)
+%     'TolFun'      - function tolerance (default: 1e-12)
+%     'TolX'        - step tolerance (default: 1e-14)
+%     'Display'     - solver display (default: 'iter')
+%     'T0_scale'    - [wi, Yi, tjik] initial guess (default: [0.9, 1.1, 1.25])
+%     'output_file' - CSV path (default: +tariffwar/results/results.csv)
+
+    % Normalize inputs
+    if ischar(datasets), datasets = {datasets}; end
+    if ischar(elasticities), elasticities = {elasticities}; end
+
+    % Load defaults, override from varargin
+    cfg = tariffwar.defaults();
+    pkg_root = fileparts(mfilename('fullpath'));
+    output_file = fullfile(pkg_root, 'results', 'results.csv');
+    for i = 1:2:numel(varargin)
+        switch varargin{i}
+            case 'Algorithm',   cfg.solver.algorithm = varargin{i+1};
+            case 'MaxIter',     cfg.solver.MaxIter = varargin{i+1};
+            case 'MaxFunEvals', cfg.solver.MaxFunEvals = varargin{i+1};
+            case 'TolFun',      cfg.solver.TolFun = varargin{i+1};
+            case 'TolX',        cfg.solver.TolX = varargin{i+1};
+            case 'Display',     cfg.solver.Display = varargin{i+1};
+            case 'T0_scale'
+                v = varargin{i+1};
+                cfg.solver.T0_scale.wi = v(1);
+                cfg.solver.T0_scale.Yi = v(2);
+                cfg.solver.T0_scale.tjik = v(3);
+            case 'output_file', output_file = varargin{i+1};
+        end
+    end
+
+    % Resolve elasticity abbreviations
+    reg = tariffwar.elasticity.registry();
+    elas = resolve_elasticities(elasticities, reg);
+
+    % Open CSV
+    out_dir = fileparts(output_file);
+    if ~isempty(out_dir) && ~isfolder(out_dir), mkdir(out_dir); end
+    fid = fopen(output_file, 'w');
+    fprintf(fid, 'Country,Year,Dataset,Elasticity,Percent_Change,Exitflag\n');
+
+    % === Main loop ===
+    all_results = {};
+    for di = 1:numel(datasets)
+      ds = datasets{di};
+      for yi = 1:numel(years)
+        yr = years(yi);
+        % Skip years without a .mat file
+        mat_file = fullfile(cfg.mat_dir, sprintf('%s%d.mat', upper(ds), yr));
+        if ~isfile(mat_file)
+            fprintf('Skipping %s %d (no data file)\n', upper(ds), yr);
+            continue;
+        end
+
+        fprintf('Loading %s %d...\n', upper(ds), yr);
+        d = tariffwar.io.load_data(ds, yr, 'mat_dir', cfg.mat_dir);
+        N = d.N;  S = d.S;
+
+        for ei = 1:numel(elas)
+            fprintf('  %s... ', elas(ei).abbrev);
+
+            % Sigma cube from prebuilt data
+            sigma_S   = d.sigma.(elas(ei).abbrev).sigma_S;
+            sigma_k3D = repmat(reshape(sigma_S, 1, 1, S), [N, N, 1]);
+
+            % Diagonal scaling for sparse datasets (ICIO has ~6% zero diagonals)
+            Xjik_raw = d.Xjik_3D;
+            if strcmp(ds, 'icio'), Xjik_raw = Xjik_raw + repmat(eye(N), [1, 1, S]); end
+
+            % Balance trade -> derived cubes -> Nash solve -> welfare
+            Xjik_3D = tariffwar.data.balance_trade(Xjik_raw, sigma_k3D, d.tjik_3D, N, S, cfg);
+            [lam, Yi3D, Ri3D, e_ik3D] = tariffwar.data.compute_derived_cubes(Xjik_3D, d.tjik_3D, N, S);
+            [X_sol, ef, out] = tariffwar.solver.nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, sigma_k3D, lam, d.tjik_3D, cfg);
+            pct = tariffwar.welfare.compute_gains(X_sol, N, S, e_ik3D, sigma_k3D, lam, d.tjik_3D);
+
+            fprintf('ef=%d iter=%d mean=%.3f%%\n', ef, out.iterations, mean(pct));
+
+            % Write CSV rows
+            for ci = 1:N
+                c = d.countries{ci};
+                if iscell(c), c = c{1}; end
+                fprintf(fid, '%s,%d,%s,%s,%.6f,%d\n', c, yr, ds, elas(ei).name, pct(ci), ef);
+            end
+
+            all_results{end+1} = struct('dataset', ds, 'year', yr, ...
+                'elasticity', elas(ei).name, 'pct_change', pct, ...
+                'exitflag', ef, 'countries', {d.countries}); %#ok<AGROW>
+        end
+      end
+    end
+
+    fclose(fid);
+    fprintf('Done. Output: %s\n', output_file);
+
+    % Return
+    results.csv_file = output_file;
+    results.runs     = all_results;
+    if numel(all_results) == 1
+        results.pct_change = all_results{1}.pct_change;
+        results.exitflag   = all_results{1}.exitflag;
+        results.countries  = all_results{1}.countries;
+    end
+end
+
+
+function entries = resolve_elasticities(names, reg)
+    entries = struct([]);
+    for i = 1:numel(names)
+        idx = find(strcmp({reg.abbrev}, names{i}), 1);
+        if isempty(idx), idx = find(strcmp({reg.name}, names{i}), 1); end
+        if isempty(idx), error('Unknown elasticity: %s', names{i}); end
+        if isempty(entries), entries = reg(idx);
+        else, entries(end+1) = reg(idx); end %#ok<AGROW>
+    end
+end
