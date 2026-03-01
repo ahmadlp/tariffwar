@@ -13,7 +13,7 @@ function cubes = compute_cubes(Z, F, R, N, S)
 %     .Ri3D      - N x N x S total output cube
 %     .betajs3D  - N x N x S expenditure share cube
 %
-%   See also: tariffwar.data.prepare_wiod
+%   See also: tariffwar.data.build_cubes_wiod
 
     X = [Z, F];
 

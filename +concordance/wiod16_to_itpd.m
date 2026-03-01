@@ -11,7 +11,7 @@ function C = wiod16_to_itpd(S_target)
 %
 %   S_target should be 154 (153 goods + 1 services).
 %
-%   See also: tariffwar.concordance.get_sector_map
+%   See also: tariffwar.build_all
 
     % ITPD-S has 170 industries:
     %   1-26:    Agriculture (maps to WIOD sector 1)

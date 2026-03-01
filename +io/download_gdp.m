@@ -11,7 +11,7 @@ function download_gdp(data_root, verbose)
 %   Coverage: 189+ countries, 1960–present.
 %   No authentication required.
 %
-%   See also: tariffwar.io.download_all, tariffwar.io.load_gdp
+%   See also: tariffwar.io.download_all
 
     if nargin < 1 || isempty(data_root)
         data_root = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'raw_data');
@@ -21,6 +21,15 @@ function download_gdp(data_root, verbose)
     out_dir = fullfile(data_root, 'Cleaned_Data_Files');
     if ~isfolder(out_dir)
         mkdir(out_dir);
+    end
+
+    % Skip if GDP CSV already exists
+    existing = dir(fullfile(out_dir, 'WDI_GDP*.csv'));
+    if ~isempty(existing)
+        if verbose
+            fprintf('[tariffwar.io] WDI GDP CSV already present. Skipping.\n');
+        end
+        return;
     end
 
     % World Bank API — JSON format, all countries, 1995-2025

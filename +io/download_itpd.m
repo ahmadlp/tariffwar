@@ -27,6 +27,15 @@ function download_itpd(data_root, verbose, variant)
         mkdir(out_dir);
     end
 
+    % Skip if ITPD CSV already exists
+    existing = dir(fullfile(out_dir, 'ITPD*.csv'));
+    if ~isempty(existing)
+        if verbose
+            fprintf('[tariffwar.io] ITPD-S CSV already present. Skipping.\n');
+        end
+        return;
+    end
+
     % USITC download URLs for ITPD-S Release 1.1
     switch variant
         case 'full'

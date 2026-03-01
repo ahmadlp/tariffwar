@@ -24,7 +24,7 @@ function [Z, F, R, N, S] = aggregate_sectors(Z, F, N_raw, S_raw, agg_matrix_path
 %     N  - number of countries (unchanged)
 %     S  - number of aggregated sectors
 %
-%   See also: tariffwar.data.prepare_wiod
+%   See also: tariffwar.data.build_cubes_wiod
 
     % Load aggregation matrix
     AggS = dlmread(agg_matrix_path);
