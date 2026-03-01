@@ -9,10 +9,9 @@ function download_tariffs(data_root, verbose, source)
 %   Sources:
 %     'teti_gtd' - Teti Global Tariff Database (default)
 %                  Available at ISIC 2-digit, HS sections, Ag/Non-Ag levels.
-%     'trains'   - UNCTAD TRAINS (legacy, already in replication files)
 %
 %   Teti GTD data is hosted on Dropbox in .7z format.
-%   Requires 7z command-line tool for extraction.
+%   Requires 7z command-line tool for extraction (brew install p7zip).
 %
 %   See also: tariffwar.io.download_all
 
@@ -23,14 +22,6 @@ function download_tariffs(data_root, verbose, source)
     if nargin < 3, source = 'teti_gtd'; end
 
     switch source
-        case 'trains'
-            if verbose
-                fprintf('[tariffwar.io] TRAINS tariffs are already in replication files.\n');
-                fprintf('[tariffwar.io] Location: %s\n', ...
-                    fullfile(data_root, 'Data_Preparation_Files', 'TRAINS_Data'));
-            end
-            return;
-
         case 'teti_gtd'
             download_teti_gtd(data_root, verbose);
 
@@ -49,44 +40,54 @@ function download_teti_gtd(data_root, verbose)
         mkdir(out_dir);
     end
 
-    % Teti GTD Dropbox URLs (beta v1, December 2024)
-    % ISIC 2-digit level is most useful for sector-level analysis
-    urls = struct( ...
-        'name', {'isic33', 'hs_sections', 'pairs'}, ...
-        'desc', {'ISIC 2-digit tariffs', 'HS section tariffs', 'Bilateral pair tariffs'}, ...
-        'url',  {'https://www.dropbox.com/scl/fi/jjknrptwj814vf3d3lqw6/isic33_vbeta1-2024-12.7z?dl=1', ...
-                 'https://www.dropbox.com/scl/fi/7dg2y9y4cpjlnt0n1rxky/section_88_21_vbeta1-2024-12.7z?dl=1', ...
-                 'https://www.dropbox.com/scl/fi/wnsgnkkqz2ifb2vqiuyce/Pairs_vbeta1-2024-12.7z?dl=1'});
+    % Skip if CSV already exists
+    existing = dir(fullfile(out_dir, 'tariff_isic33*.csv'));
+    if ~isempty(existing)
+        if verbose
+            fprintf('[tariffwar.io] Teti GTD CSV already present. Skipping.\n');
+        end
+        return;
+    end
 
-    % Download ISIC 2-digit by default (most useful)
-    url_info = urls(1);  % isic33
+    % Pre-flight check for 7z
+    [status, ~] = system('7z --help');
+    if status ~= 0
+        error('tariffwar:io:missing7z', ...
+            ['7-Zip is required to extract Teti GTD archives.\n' ...
+             'Install with: brew install p7zip']);
+    end
+
+    % Teti GTD Dropbox URLs (beta v1, December 2024)
+    url = 'https://www.dropbox.com/scl/fi/jjknrptwj814vf3d3lqw6/isic33_vbeta1-2024-12.7z?dl=1';
 
     file_path = fullfile(out_dir, 'isic33_vbeta1-2024-12.7z');
 
     if verbose
-        fprintf('[tariffwar.io] Downloading Teti GTD (%s)...\n', url_info.desc);
+        fprintf('[tariffwar.io] Downloading Teti GTD (ISIC 2-digit tariffs)...\n');
         fprintf('[tariffwar.io] Source: feodorateti.github.io\n');
     end
 
     try
-        websave(file_path, url_info.url);
+        websave(file_path, url);
     catch ME
         error('tariffwar:io:downloadFailed', ...
             'Failed to download Teti GTD: %s\nManual download: https://feodorateti.github.io/data.html', ...
             ME.message);
     end
 
-    % Extract .7z (requires 7z command-line tool)
+    % Extract .7z
     if verbose
         fprintf('[tariffwar.io] Extracting .7z archive...\n');
     end
 
     [status, ~] = system(sprintf('7z x "%s" -o"%s" -y', file_path, out_dir));
     if status ~= 0
-        warning('tariffwar:io:extractionFailed', ...
-            'Could not extract .7z file. Please install 7-Zip and run:\n  7z x "%s" -o"%s"', ...
-            file_path, out_dir);
+        error('tariffwar:io:extractionFailed', ...
+            'Could not extract .7z file. Ensure 7-Zip is installed:\n  brew install p7zip');
     end
+
+    % Clean up archive
+    delete(file_path);
 
     if verbose
         fprintf('[tariffwar.io] Teti GTD data downloaded to: %s\n', out_dir);

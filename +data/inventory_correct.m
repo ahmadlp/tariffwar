@@ -20,7 +20,7 @@ function [Z, F, R] = inventory_correct(DATA, N, S)
 %     F  - (N*S) x (N*5) corrected final demand matrix
 %     R  - (N*S) x 1 corrected total output vector
 %
-%   See also: tariffwar.data.prepare_wiod
+%   See also: tariffwar.data.build_cubes_wiod
 
     NS = N * S;
 

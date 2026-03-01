@@ -22,6 +22,16 @@ function download_icio(data_root, verbose)
         mkdir(out_dir);
     end
 
+    % Skip if CSV files already exist
+    existing = dir(fullfile(out_dir, '*.csv'));
+    if numel(existing) >= 10
+        if verbose
+            fprintf('[tariffwar.io] ICIO CSV files already present (%d files). Skipping.\n', ...
+                numel(existing));
+        end
+        return;
+    end
+
     % OECD ICIO 2023 edition download URLs (CSV ZIPs, grouped by 5-year periods)
     % Source: stats.oecd.org, extracted from pymrio library
     bundles = struct( ...

@@ -9,7 +9,7 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
 %
 %   This is a verbatim reproduction of Step_02_Baseline.m.
 %
-%   See also: tariffwar.solver.balanced_trade_baseline, tariffwar.data.prepare_wiod
+%   See also: tariffwar.solver.balanced_trade_baseline
 
     % Build derived cubes from Xijs3D
     Xjik_3D = Xijs3D;

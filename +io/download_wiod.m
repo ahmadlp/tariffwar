@@ -5,10 +5,9 @@ function download_wiod(data_root, verbose)
 %   tariffwar.io.download_wiod(data_root)
 %   tariffwar.io.download_wiod(data_root, verbose)
 %
-%   Downloads World Input-Output Tables (WIOTs) from the WIOD 2016 Release.
+%   Downloads World Input-Output Tables (WIOTs) from the WIOD 2016 Release,
+%   then converts each XLSB file to a pure numeric CSV (data starts at E7).
 %   Source: University of Groningen, hosted on DataverseNL.
-%
-%   The Excel ZIP contains individual year files (2000–2014) in XLSB format.
 %
 %   See also: tariffwar.io.download_all
 
@@ -22,8 +21,17 @@ function download_wiod(data_root, verbose)
         mkdir(out_dir);
     end
 
+    % Skip if CSV files already exist
+    existing_csv = dir(fullfile(out_dir, 'WIOT*.csv'));
+    if numel(existing_csv) >= 15
+        if verbose
+            fprintf('[tariffwar.io] WIOD CSV files already present (%d files). Skipping.\n', ...
+                numel(existing_csv));
+        end
+        return;
+    end
+
     % DataverseNL direct download URLs (DOI: 10.34894/PJ2M1C)
-    % Excel format (XLSB) — most accessible for Matlab
     url = 'https://dataverse.nl/api/access/datafile/199104';
     zip_path = fullfile(out_dir, 'WIOD2016_XLSB.zip');
 
@@ -48,10 +56,30 @@ function download_wiod(data_root, verbose)
     end
     unzip(zip_path, out_dir);
 
-    % Convert XLSB to CSV if needed
+    % Convert each XLSB to pure numeric CSV
+    xlsb_files = dir(fullfile(out_dir, 'WIOT*.xlsb'));
     if verbose
-        fprintf('[tariffwar.io] WIOD data downloaded to: %s\n', out_dir);
-        fprintf('[tariffwar.io] Note: Files are in XLSB format. Use readtable() to read.\n');
-        fprintf('[tariffwar.io] If CSV files already exist in WIOD_Data/, they take precedence.\n');
+        fprintf('[tariffwar.io] Converting %d XLSB files to CSV...\n', numel(xlsb_files));
+    end
+
+    for i = 1:numel(xlsb_files)
+        xlsb_path = fullfile(out_dir, xlsb_files(i).name);
+        [~, name, ~] = fileparts(xlsb_files(i).name);
+        csv_path = fullfile(out_dir, [name '.csv']);
+
+        if verbose
+            fprintf('[tariffwar.io]   %s -> %s\n', xlsb_files(i).name, [name '.csv']);
+        end
+
+        data = readmatrix(xlsb_path, 'Range', 'E7');
+        writematrix(data, csv_path);
+        delete(xlsb_path);
+    end
+
+    % Clean up ZIP
+    delete(zip_path);
+
+    if verbose
+        fprintf('[tariffwar.io] WIOD data downloaded and converted to CSV: %s\n', out_dir);
     end
 end

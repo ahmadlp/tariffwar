@@ -53,7 +53,7 @@ function download_all(data_root, verbose)
     % 3. USITC ITPD-S
     if verbose, fprintf('\n[3/5] %s\n', steps{3}); end
     try
-        tariffwar.io.download_itpd(data_root, verbose, '2019');
+        tariffwar.io.download_itpd(data_root, verbose, 'no_names');
     catch ME
         warning('tariffwar:io:downloadFailed', 'ITPD-S download failed: %s', ME.message);
     end

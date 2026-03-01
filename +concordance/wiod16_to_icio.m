@@ -12,7 +12,7 @@ function C = wiod16_to_icio(S_target)
 %   Uses flat assignment: each ICIO sub-sector inherits its parent
 %   WIOD sector's elasticity value.
 %
-%   See also: tariffwar.concordance.get_sector_map
+%   See also: tariffwar.build_all
 
     % ICIO Extended 2016-2022 goods sectors (27 total) in data order:
     %  1. A01       -> WIOD 1  (Agriculture)
