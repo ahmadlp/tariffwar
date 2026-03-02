@@ -5,9 +5,15 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
 %
 %   Solves the DEK balanced trade exercise that removes trade deficits.
 %   Uses fsolve with 2*N unknowns (wages + incomes) to find new equilibrium
-%   flows under zero deficits.
+%   flows under zero deficits.  Options are read from cfg.balance_trade.
 %
-%   This is a verbatim reproduction of Step_02_Baseline.m.
+%   Convergence strategy:
+%     Attempt 1: fsolve + default algorithm, default X0
+%     Attempt 2: fsolve + fallback algorithm, random scalar X0
+%       wi_h in [T0_range.wi(1), T0_range.wi(2)] * ones(N,1)
+%       Yi_h in [T0_range.Yi(1), T0_range.Yi(2)] * ones(N,1)
+%     Stall monitor kills early if ||F|| stops decreasing.
+%     Best solution (by exitflag, then residual) is returned.
 %
 %   See also: tariffwar.solver.balanced_trade_baseline
 
@@ -21,30 +27,71 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
     bt_fn = @tariffwar.solver.balanced_trade_baseline;
     syst = @(X) bt_fn(X, N, S, Yi3D, Ri3D, beta_ik3D, sigma_k3D, lambda_jik3D, tjik_3D);
 
-    display_opt = 'iter';
-    tolfun_opt  = 1e-10;
-    tolx_opt    = 1e-10;
-    if nargin >= 6 && isstruct(cfg)
-        if isfield(cfg, 'solver')
-            if isfield(cfg.solver, 'Display'); display_opt = cfg.solver.Display; end
-            if isfield(cfg.solver, 'TolFun');  tolfun_opt  = cfg.solver.TolFun; end
-            if isfield(cfg.solver, 'TolX');    tolx_opt    = cfg.solver.TolX; end
+    bt = cfg.balance_trade;
+
+    % Stall monitor
+    [monitor_fcn, monitor_reset] = tariffwar.solver.stall_monitor( ...
+        bt.stall_window, bt.min_progress);
+
+    algo1 = bt.algorithm;
+    algo2 = bt.algorithm_fallback;
+
+    % Initial-guess ranges for retry
+    rng_wi = bt.T0_range.wi;
+    rng_Yi = bt.T0_range.Yi;
+
+    % Track best across both attempts
+    x_best    = X0;
+    ef_best   = -99;
+    fval_best = Inf(2*N, 1);
+
+    for attempt = 1:2
+        monitor_reset();
+
+        if attempt == 1
+            X0_cur = X0;
+            algo = algo1;
+            lbl = algo1;
+        else
+            % Fallback algo + random scalar initial guess
+            a = rng_wi(1) + diff(rng_wi) * rand;
+            b = rng_Yi(1) + diff(rng_Yi) * rand;
+            X0_cur = [a * ones(N,1); b * ones(N,1)];
+            algo = algo2;
+            lbl = sprintf('%s + random X0 [%.2f, %.2f]', algo2, a, b);
         end
+
+        if attempt > 1 && cfg.verbose
+            fprintf('[balance_trade] Attempt %d/2: %s\n', attempt, lbl);
+        end
+
+        opts = optimoptions('fsolve', ...
+            'Algorithm',              algo, ...
+            'Display',                bt.Display, ...
+            'MaxFunctionEvaluations', bt.MaxFunEvals, ...
+            'MaxIterations',          bt.MaxIter, ...
+            'FunctionTolerance',      bt.TolFun, ...
+            'StepTolerance',          bt.TolX, ...
+            'OutputFcn',              monitor_fcn);
+        [x_try, fval_try, ef] = fsolve(syst, X0_cur, opts);
+
+        if ef > ef_best || (ef == ef_best && max(abs(fval_try)) < max(abs(fval_best)))
+            x_best    = x_try;
+            ef_best   = ef;
+            fval_best = fval_try;
+        end
+
+        if ef > 0, break; end
     end
-    options = optimset('Display', display_opt, ...
-        'MaxFunEvals', 50000000, 'MaxIter', 100000, ...
-        'TolFun', tolfun_opt, 'TolX', tolx_opt);
 
-    [x_fsolve, fval_fsolve] = fsolve(syst, X0, options);
-    max_resid = max(abs(fval_fsolve));
-
+    max_resid = max(abs(fval_best));
     if cfg.verbose
         fprintf('[tariffwar.data] Balance trade max residual: %.2e\n', max_resid);
     end
 
     % Extract solution
-    wi_h = abs(x_fsolve(1:N));
-    Yi_h = abs(x_fsolve(N+1:2*N));
+    wi_h = abs(x_best(1:N));
+    Yi_h = abs(x_best(N+1:2*N));
 
     % Construct 3D cubes from solution
     wi_h3D = repmat(wi_h, [1 N S]);
