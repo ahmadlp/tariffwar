@@ -29,13 +29,17 @@ function results = run(datasets, years, elasticities, varargin)
 %   Years without a .mat file are silently skipped.
 %
 %   Name-value options:
-%     'Algorithm'   - fsolve algorithm (default: 'trust-region-dogleg')
-%     'MaxIter'     - max iterations (default: Inf)
-%     'TolFun'      - function tolerance (default: 1e-12)
-%     'TolX'        - step tolerance (default: 1e-14)
-%     'Display'     - solver display (default: 'iter')
-%     'T0_scale'    - [wi, Yi, tjik] initial guess (default: [0.9, 1.1, 1.25])
-%     'output_file' - CSV path (default: +tariffwar/results/results.csv)
+%     'Algorithm'          - fsolve algorithm (default: 'levenberg-marquardt')
+%     'MaxIter'            - max iterations per attempt (default: 50)
+%     'MaxFunEvals'        - max function evaluations (default: Inf)
+%     'TolFun'             - function tolerance (default: 1e-6)
+%     'TolX'               - step tolerance (default: 1e-8)
+%     'Display'            - solver display (default: 'iter')
+%     'T0_scale'           - [wi, Yi, tjik] initial guess (default: [0.9, 1.1, 1.25])
+%     'output_file'        - CSV path (default: +tariffwar/results/results.csv)
+%     'max_retries'        - restart attempts with random T0 (default: 3)
+%     'stall_window'       - iterations before stall check (default: 3)
+%     'min_progress'       - min relative ||F|| decrease (default: 0.10)
 
     % Normalize inputs
     if ischar(datasets), datasets = {datasets}; end
@@ -47,20 +51,25 @@ function results = run(datasets, years, elasticities, varargin)
     output_file = fullfile(pkg_root, 'results', 'results.csv');
     for i = 1:2:numel(varargin)
         switch varargin{i}
-            case 'Algorithm',   cfg.solver.algorithm = varargin{i+1};
-            case 'MaxIter',     cfg.solver.MaxIter = varargin{i+1};
-            case 'MaxFunEvals', cfg.solver.MaxFunEvals = varargin{i+1};
-            case 'TolFun',      cfg.solver.TolFun = varargin{i+1};
-            case 'TolX',        cfg.solver.TolX = varargin{i+1};
-            case 'Display',     cfg.solver.Display = varargin{i+1};
+            case 'Algorithm',          cfg.solver.algorithm = varargin{i+1};
+            case 'MaxIter',            cfg.solver.MaxIter = varargin{i+1};
+            case 'MaxFunEvals',        cfg.solver.MaxFunEvals = varargin{i+1};
+            case 'TolFun',             cfg.solver.TolFun = varargin{i+1};
+            case 'TolX',               cfg.solver.TolX = varargin{i+1};
+            case 'Display',            cfg.solver.Display = varargin{i+1};
             case 'T0_scale'
                 v = varargin{i+1};
                 cfg.solver.T0_scale.wi = v(1);
                 cfg.solver.T0_scale.Yi = v(2);
                 cfg.solver.T0_scale.tjik = v(3);
-            case 'output_file', output_file = varargin{i+1};
+            case 'output_file',        output_file = varargin{i+1};
+            case 'max_retries',        cfg.solver.max_retries = varargin{i+1};
+            case 'stall_window',       cfg.solver.stall_window = varargin{i+1};
+            case 'min_progress',       cfg.solver.min_progress = varargin{i+1};
+            % 'algorithm_fallback' removed — Nash uses single algorithm
         end
     end
+
 
     % Resolve elasticity abbreviations
     reg = tariffwar.elasticity.registry();

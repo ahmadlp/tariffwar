@@ -28,6 +28,5 @@ function main()
     years        = 2000:2022;   % run.m skips years without a .mat file
     elasticities = {'L21', 'U4', 'CP', 'BSY', 'GYY', 'Shap', 'FGO', 'LL'};
 
-    tariffwar.run(datasets, years, elasticities, ...
-        'MaxIter', 100);
+    tariffwar.run(datasets, years, elasticities);
 end
