@@ -63,7 +63,7 @@ function download_itpd(data_root, verbose, variant)
     end
 
     try
-        websave(zip_path, url);
+        tariffwar.io.robust_download(url, zip_path, verbose);
     catch ME
         error('tariffwar:io:downloadFailed', ...
             'Failed to download ITPD-S: %s\nURL: %s\nManual download: https://www.usitc.gov/data/gravity/itpds', ...
@@ -74,6 +74,7 @@ function download_itpd(data_root, verbose, variant)
         fprintf('[tariffwar.io] Extracting...\n');
     end
     unzip(zip_path, out_dir);
+    delete(zip_path);
 
     if verbose
         fprintf('[tariffwar.io] ITPD-S data downloaded to: %s\n', out_dir);

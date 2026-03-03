@@ -26,7 +26,7 @@ function cfg = defaults()
     cfg.solver.T0_range.tjik   = [1.1, 1.5];
 
     % Stall detection
-    cfg.solver.stall_window    = 3;
+    cfg.solver.stall_window    = 5;
     cfg.solver.min_progress    = 0.10;
 
     % Balanced trade solver (separate from Nash)
@@ -41,6 +41,6 @@ function cfg = defaults()
     cfg.balance_trade.T0_range.Yi         = [0.7, 1.3];
 
     % Stall detection (balanced trade)
-    cfg.balance_trade.stall_window        = 3;
+    cfg.balance_trade.stall_window        = 5;
     cfg.balance_trade.min_progress        = 0.10;
 end

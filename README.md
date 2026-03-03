@@ -15,9 +15,9 @@ tariffwar.main              % all datasets x years x elasticities -> results.csv
 
 **Run a specific slice:**
 ```matlab
-tariffwar.run('wiod', 2014, 'L21')
-tariffwar.run('wiod', 2014, 'L21', 'Algorithm', 'trust-region-dogleg')
-tariffwar.run({'wiod','icio'}, 2000:2022, {'L21','U4'})
+tariffwar.run('wiod', 2014, 'IS')
+tariffwar.run('wiod', 2014, 'IS', 'Algorithm', 'trust-region-dogleg')
+tariffwar.run({'wiod','icio'}, 2000:2022, {'IS','U4'})
 ```
 
 ---
@@ -27,7 +27,7 @@ tariffwar.run({'wiod','icio'}, 2000:2022, {'L21','U4'})
 ```
 +tariffwar/
 |-- main.m                       One-click runner: download -> build -> analyze
-|-- run.m                        Analysis entry point: tariffwar.run('wiod', 2014, 'L21')
+|-- run.m                        Analysis entry point: tariffwar.run('wiod', 2014, 'IS')
 |-- defaults.m                   Solver defaults and paths
 |-- rerun_failed.m               Re-solve failed cases and merge improved results
 |-- build_all.m                  Data construction (builds mat/ files from raw CSVs)
@@ -62,12 +62,13 @@ tariffwar.run({'wiod','icio'}, 2000:2022, {'L21','U4'})
 |   |-- download_wiod.m          WIOD 2016 Release (XLSB -> CSV)
 |   |-- download_icio.m          OECD ICIO 2023 tables
 |   |-- download_itpd.m          USITC ITPD-S R1.1
-|   |-- download_tariffs.m       Teti GTD tariffs (requires 7z)
+|   |-- download_tariffs.m       Teti GTD tariffs (Dropbox, browser + py7zr)
 |   |-- download_gdp.m           World Bank WDI GDP
+|   |-- robust_download.m        Shared download helper (CDN anti-bot handling)
 |
 |-- +elasticity/                 Trade elasticity sources
 |   |-- registry.m               Master registry (8 sources, all implemented)
-|   |-- +sources/                Individual source implementations (8 files)
+|   |-- +sources/                Individual source implementations
 |
 |-- +concordance/                Sector-mapping concordance matrices (10 files)
 |-- +tariff/                     Tariff data readers
@@ -93,10 +94,14 @@ Each step can also be run independently:
 ```matlab
 tariffwar.io.download_all()              % download raw data (~15 GB total)
 tariffwar.build_all('dataset', 'wiod')   % rebuild WIOD .mat files only
-tariffwar.run('wiod', 2014, 'L21')       % run a specific slice
+tariffwar.run('wiod', 2014, 'IS')       % run a specific slice
 ```
 
-**Prerequisites for download:** Internet connection, 7-Zip CLI (`brew install p7zip`) for tariff data extraction.
+**Prerequisites for download:** Internet connection, Python 3 with `pandas`, `pyxlsb`, and `py7zr`:
+```bash
+pip3 install pandas pyxlsb py7zr
+```
+Tariff data (Teti GTD) is hosted on Dropbox, which blocks programmatic downloads. The download function opens a browser window — click "Download" and the pipeline handles the rest.
 
 ---
 
@@ -177,7 +182,7 @@ All core arrays are **N x N x S** cubes where:
 - **Years:** 2011-2022
 - **Source files:** `raw_data/Data_Preparation_Files/ICIO_Data/{year}.csv`
 - **Sector classification:** ISIC Rev 4 letter-prefix codes (A01, B05-B09, C10T12, ..., T)
-- **Notes:** 50 raw sectors. 27 goods sectors (ISIC sections A, B, C) are preserved individually; 23 services sectors (D through T) are collapsed to 1 aggregate. Final demand columns are identified by suffix matching (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR). Only 81 of 85 economies have FD columns. Years 2016-2022 use the Extended ICIO format; earlier years use the standard format with different sector codes.
+- **Notes:** All years use the Extended ICIO format (2023 edition). 50 raw sectors: 27 goods sectors (ISIC sections A, B, C) are preserved individually; 23 services sectors (D through T) are collapsed to 1 aggregate. Final demand columns are identified by suffix matching (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR). Only 81 of 85 economies have FD columns. Downloaded as two ZIP bundles from OECD (2011-2015 and 2016-2022).
 
 ### USITC ITPD-S (International Trade and Production Database for Estimation)
 - **Countries:** 135 (after filtering; 246 raw)
@@ -192,7 +197,7 @@ All core arrays are **N x N x S** cubes where:
 
 | Name | Paper | Native Sectors | Status |
 |------|-------|----------------|--------|
-| `lashkaripour_2021` | Lashkaripour (2021, JIE) | 16 (WIOD) | Implemented |
+| `in_sample` | Dataset-specific (see below) | 16 (WIOD) | Implemented |
 | `uniform_4` | Simonovska & Waugh (2014, JIE) | 1 (uniform sigma=4) | Implemented |
 | `caliendo_parro_2015` | Caliendo & Parro (2015, ReStud) | 20 (ISIC Rev 3) | Implemented |
 | `bagwell_staiger_yurukoglu_2021` | BSY (2021, Econometrica) | 49 (SITC Rev 2) | Implemented |
@@ -225,7 +230,7 @@ Years without a prebuilt `.mat` file are silently skipped — so you can safely 
 
 | Abbrev | Full name | Paper |
 |--------|-----------|-------|
-| `L21` | `lashkaripour_2021` | Lashkaripour (2021, JIE) |
+| `IS` | `in_sample` | In-sample (dataset-specific) |
 | `U4` | `uniform_4` | Simonovska & Waugh (2014, JIE) |
 | `CP` | `caliendo_parro_2015` | Caliendo & Parro (2015, ReStud) |
 | `BSY` | `bagwell_staiger_yurukoglu_2021` | BSY (2021, Econometrica) |
@@ -236,22 +241,22 @@ Years without a prebuilt `.mat` file are silently skipped — so you can safely 
 
 ```matlab
 % Single solve
-result = tariffwar.run('wiod', 2014, 'L21')
+result = tariffwar.run('wiod', 2014, 'IS')
 
 % Override solver options
-result = tariffwar.run('wiod', 2014, 'L21', ...
+result = tariffwar.run('wiod', 2014, 'IS', ...
     'Algorithm', 'trust-region-dogleg', ...
     'MaxIter', 100, ...
     'TolFun', 1e-8)
 
 % Custom initial guess scaling [wi, Yi, tjik]
-result = tariffwar.run('wiod', 2014, 'L21', 'T0_scale', [0.8, 1.2, 1.5])
+result = tariffwar.run('wiod', 2014, 'IS', 'T0_scale', [0.8, 1.2, 1.5])
 
 % Grid: multiple years and elasticities
-result = tariffwar.run('wiod', 2000:2014, {'L21', 'U4'})
+result = tariffwar.run('wiod', 2000:2014, {'IS', 'U4'})
 
 % Grid: multiple datasets
-result = tariffwar.run({'wiod', 'icio'}, 2014, {'L21', 'U4'})
+result = tariffwar.run({'wiod', 'icio'}, 2014, {'IS', 'U4'})
 ```
 
 **Name-value options:**
@@ -337,12 +342,12 @@ tariffwar.rerun_failed('datasets', {'wiod'})      % restrict to WIOD failures on
 
 | Dataset | Elasticity | N | S | Time | Exitflag | Welfare (mean) | Welfare (range) |
 |---------|-----------|---|---|------|----------|----------------|-----------------|
-| WIOD 2014 | lashkaripour_2021 | 44 | 16 | 2.1s | 1 | -2.41% | [-33.7%, 3.6%] |
+| WIOD 2014 | in_sample | 44 | 16 | 2.1s | 1 | -2.41% | [-33.7%, 3.6%] |
 | WIOD 2014 | uniform_4 | 44 | 16 | 2.0s | 1 | -2.42% | similar |
-| ICIO 2019 | lashkaripour_2021 | 85 | 28 | 95.8s | 1 | -3.18% | [-53.6%, 0.5%] |
+| ICIO 2019 | in_sample | 85 | 28 | 95.8s | 1 | -3.18% | [-53.6%, 0.5%] |
 | ICIO 2019 | uniform_4 | 85 | 28 | 31.9s | 4 | -1.31% | [-23.1%, 10.0%] |
 | ITPD-S 2019 | uniform_4 | 135 | 154 | 395s | 3 | -2.27% | [-9.9%, -0.01%] |
-| ITPD-S 2019 | lashkaripour_2021 | 135 | 154 | -- | -- | Does not converge | See below |
+| ITPD-S 2019 | in_sample | 135 | 154 | -- | -- | Does not converge | See below |
 
 **Exitflag key:** 1 = converged, 3 = residual near zero but last step ineffective, 4 = step smaller than tolerance. All positive exitflags indicate acceptable convergence.
 
@@ -414,9 +419,9 @@ This section documents errors made during development so future agents do not re
 
 **Why it failed:** Dimension mismatch: the concordance returned a 21x16 matrix but the data had S=28 sectors.
 
-**The fix:** Complete rewrite of `wiod16_to_icio.m` with a mapping table for all 27 ICIO Extended goods sectors to the appropriate WIOD-16 parent sector. Added a fallback function `wiod16_to_icio_standard` for the standard ICIO format.
+**The fix:** Complete rewrite of `wiod16_to_icio.m` with a mapping table for all 27 ICIO Extended goods sectors to the appropriate WIOD-16 parent sector. The function dispatches on `S_target` (28 for Extended, 23 for SML, 22 for Standard).
 
-**Lesson:** Dataset formats evolve. The OECD ICIO "Extended" tables (2016-2022) have a fundamentally different sector structure than the standard tables (1995-2018). Always check actual file headers before writing parsers.
+**Lesson:** Dataset formats evolve. The OECD ICIO "Extended" tables have a fundamentally different sector structure than the standard tables. Always check actual file headers before writing parsers. All years (2011-2022) now use the Extended format for consistency.
 
 ### 7. NaN Propagation from Zero-Trade Flows
 
@@ -436,7 +441,7 @@ This section documents errors made during development so future agents do not re
 
 **Impact:** The filled entries create tiny lambda_jik values (e.g. 1e-15) that produce near-zero derivatives in the Jacobian, worsening the condition number. However, the trade floor is necessary for the denominator guards to work correctly (it ensures `sum_j(X_jik) > 0` so that `sum_j(lambda_jik) = 1`).
 
-**Current status:** The trade floor remains in the code. It does not prevent convergence for `uniform_4` elasticities (the solver converges in 8 iterations even with N=135, S=154). Its impact on `lashkaripour_2021` convergence is unclear and requires further investigation.
+**Current status:** The trade floor remains in the code. It does not prevent convergence for `uniform_4` elasticities (the solver converges in 8 iterations even with N=135, S=154). Its impact on the WIOD in-sample elasticities (mapped to ITPD) is unclear and requires further investigation.
 
 **Lesson:** Filling zeros with tiny values is a double-edged sword. It prevents NaN but degrades conditioning. A better approach (not yet implemented) would be to handle zero-trade sectors explicitly in the equations, setting `lambda = 0` and skipping those terms entirely.
 
@@ -450,7 +455,7 @@ This section documents errors made during development so future agents do not re
 
 ### What Does Not Work
 
-**ITPD-S + lashkaripour_2021 (heterogeneous elasticities):** The Nash solver does not converge. The residual `||f(x)||^2` drops rapidly in the first few iterations (from ~1.7e14 to ~1e10) but then stalls, creeping down by < 1% per iteration for hundreds of iterations.
+**ITPD-S + WIOD in-sample elasticities (heterogeneous, mapped via concordance):** The Nash solver does not converge. The residual `||f(x)||^2` drops rapidly in the first few iterations (from ~1.7e14 to ~1e10) but then stalls, creeping down by < 1% per iteration for hundreds of iterations. Note: the ITPD-specific in-sample elasticities (`IS` on ITPD) do converge.
 
 ### Debugging Attempts and Findings
 
@@ -459,7 +464,7 @@ This section documents errors made during development so future agents do not re
 - **Diagnosis:** The trust region shrank to ~0.01 and the solver alternated between accepted and rejected steps with minimal progress. First-order optimality alternated between ~1e10 and ~1e11, suggesting two groups of equations with different scales.
 
 #### Attempt 2: Collapse Sectors to S=16
-- **Rationale:** Since lashkaripour_2021 only has 16 native elasticity values, mapping them to 154 sectors creates redundancy (many sectors share the same elasticity). Collapsing ITPD-S to 16 sectors via the concordance should produce a smaller, better-conditioned problem.
+- **Rationale:** Since the WIOD in-sample elasticities only have 16 native values, mapping them to 154 sectors creates redundancy (many sectors share the same elasticity). Collapsing ITPD-S to 16 sectors via the concordance should produce a smaller, better-conditioned problem.
 - **Implementation:** Added `cfg.itpd_sector_collapse = 'wiod_16'` option. Uses the transpose of `wiod16_to_itpd` concordance to aggregate trade flows: `Xjik_16(:,:,w) = sum(Xjik_154(:,:,s))` for all s mapping to WIOD sector w.
 - **Result:** Same convergence failure. `||f||^2` dropped from 1.7e14 to ~4.5e9 in ~220 iterations but continued to stall. Collapsing sectors reduced per-iteration cost (~10x faster function evaluations) but did not fix the convergence issue.
 
@@ -468,14 +473,14 @@ This section documents errors made during development so future agents do not re
 - **Result:** With TolFun=1e-8, the solver still did not converge because trust-region-dogleg's exit criterion requires `||f||_inf < sqrt(TolFun) = 1e-4`, and the maximum residual remained > 0.1.
 
 #### Attempt 4: Country Trimming (N=66)
-- **Rationale:** N=66 (0.1% trade threshold) worked for uniform_4. Testing lashkaripour_2021 at N=66.
-- **Result:** Same convergence failure even at N=66 with lashkaripour_2021. The issue is specific to heterogeneous elasticities, not to the number of countries.
+- **Rationale:** N=66 (0.1% trade threshold) worked for uniform_4. Testing WIOD in-sample elasticities at N=66.
+- **Result:** Same convergence failure even at N=66 with WIOD in-sample elasticities. The issue is specific to heterogeneous elasticities, not to the number of countries.
 
 ### Root Cause Analysis
 
-The convergence failure with lashkaripour_2021 on ITPD-S is caused by a combination of factors:
+The convergence failure with WIOD in-sample elasticities on ITPD-S is caused by a combination of factors:
 
-1. **Heterogeneous elasticities create a stiff system:** The lashkaripour_2021 elasticities range from epsilon=0.47 (food) to epsilon=14.94 (chemicals), a 30x ratio. This means the optimal tariff formula (ERR3) has very different sensitivity across sectors. Small changes in wages or incomes cause large changes in some sector-specific trade shares but negligible changes in others, creating a stiff Jacobian.
+1. **Heterogeneous elasticities create a stiff system:** The WIOD in-sample elasticities range from epsilon=0.47 (food) to epsilon=14.94 (chemicals), a 30x ratio. This means the optimal tariff formula (ERR3) has very different sensitivity across sectors. Small changes in wages or incomes cause large changes in some sector-specific trade shares but negligible changes in others, creating a stiff Jacobian.
 
 2. **ITPD-S data has different sparsity structure than WIOD/ICIO:** WIOD is a dense balanced IO table (all entries positive by construction). ICIO is moderately sparse. ITPD-S is very sparse: many country pairs have zero trade in most sectors. The trade floor fills these with tiny values that create near-zero lambda entries with near-zero Jacobian rows.
 
@@ -499,11 +504,33 @@ To investigate, build ITPD cubes via `tariffwar.build_all('dataset', 'itpd', 'ye
 
 ---
 
+## Download Pipeline
+
+`tariffwar.io.download_all` orchestrates all five data sources. Each step is idempotent (skips if data is already present) and uses per-file checks to detect missing or corrupt files.
+
+| Source | Host | Size | Method |
+|--------|------|------|--------|
+| WIOD | DataverseNL | ~877 MB | `robust_download` → Python xlsb→csv |
+| ICIO | OECD | ~500 MB (2 ZIPs) | `robust_download` → unzip |
+| ITPD-S | USITC | ~1 GB | `robust_download` (cookie handshake) |
+| Tariffs | Dropbox | ~240 KB .7z | Browser download → py7zr extract |
+| GDP | World Bank API | ~2 MB | `webread` (JSON API) |
+
+**CDN anti-bot handling:** Many servers (USITC, DataverseNL) use Akamai CDN, which blocks MATLAB's `websave` with HTTP 403. The shared helper `robust_download.m` handles this automatically:
+1. Tries `websave` (works for OECD, World Bank)
+2. Falls back to `curl` with a cookie handshake — visits the parent directory first to acquire a session cookie, then downloads with that cookie
+
+**Dropbox (Teti GTD tariffs):** Dropbox blocks all programmatic downloads (including curl, Python requests, and headless browsers). The download function opens the Dropbox page in your default browser, then polls for the `.7z` file to appear in `~/Downloads`. Once detected, it auto-moves the file and extracts with Python `py7zr`.
+
+**WIOD XLSB conversion:** MATLAB's `readmatrix` for `.xlsb` requires Excel for Windows. The pipeline uses Python (`pandas` + `pyxlsb`) for portable conversion on all platforms.
+
+---
+
 ## Quick Start Examples
 
 ### Reproduce WIOD Results (Table 1 of the Paper)
 ```matlab
-result = tariffwar.run('wiod', 2014, 'L21')
+result = tariffwar.run('wiod', 2014, 'IS')
 % result.pct_change: 44x1 vector of % welfare changes
 % result.countries:  44x1 cell of country names
 ```
@@ -517,7 +544,7 @@ result = tariffwar.run('icio', 2019, 'U4')
 ```matlab
 tariffwar.main
 % Equivalent to:
-% tariffwar.run({'wiod','icio','itpd'}, 2000:2022, {'L21','U4','CP','BSY','GYY','Shap','FGO','LL'})
+% tariffwar.run({'wiod','icio','itpd'}, 2000:2022, {'IS','U4','CP','BSY','GYY','Shap','FGO','LL'})
 % Years without data are skipped automatically.
 % Output: +tariffwar/results/results.csv
 ```

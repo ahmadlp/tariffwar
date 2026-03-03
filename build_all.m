@@ -159,11 +159,20 @@ function sigma = compute_all_sigmas(reg, ds, S, verbose)
 
     for i = 1:numel(reg)
         entry = reg(i);
-        raw   = entry.getter();
 
         if strcmp(entry.classification, 'uniform')
+            raw = entry.getter();
             epsilon_S = raw.value * ones(S, 1);
+        elseif strcmp(entry.classification, 'insample')
+            raw = entry.getter();
+            switch ds
+                case 'wiod', epsilon_wiod = raw.epsilon_wiod;
+                case 'icio', epsilon_wiod = raw.epsilon_icio;
+                case 'itpd', epsilon_wiod = raw.epsilon_itpd;
+            end
+            epsilon_S = chain_to_dataset(epsilon_wiod, ds, S);
         else
+            raw = entry.getter();
             % Source -> WIOD-16
             C_to_wiod = concordance_to_wiod(entry);
             epsilon_wiod = C_to_wiod * raw.epsilon;

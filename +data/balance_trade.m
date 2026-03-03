@@ -71,8 +71,11 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
             'MaxFunctionEvaluations', bt.MaxFunEvals, ...
             'MaxIterations',          bt.MaxIter, ...
             'FunctionTolerance',      bt.TolFun, ...
-            'StepTolerance',          bt.TolX, ...
-            'OutputFcn',              monitor_fcn);
+            'StepTolerance',          bt.TolX);
+        % Last attempt: no stall monitor — let it run to MaxIter
+        if attempt < 2
+            opts = optimoptions(opts, 'OutputFcn', monitor_fcn);
+        end
         [x_try, fval_try, ef] = fsolve(syst, X0_cur, opts);
 
         if ef > ef_best || (ef == ef_best && max(abs(fval_try)) < max(abs(fval_best)))

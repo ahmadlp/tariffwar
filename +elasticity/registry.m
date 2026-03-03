@@ -19,14 +19,14 @@ function reg = registry()
     idx = 0;
 
     idx = idx + 1;
-    reg(idx).name           = 'lashkaripour_2021';
-    reg(idx).abbrev         = 'L21';
-    reg(idx).label          = 'Lashkaripour (2021, JIE)';
-    reg(idx).paper          = 'Lashkaripour (2021) "Cost of a Global Tariff War"';
+    reg(idx).name           = 'in_sample';
+    reg(idx).abbrev         = 'IS';
+    reg(idx).label          = 'In-Sample (dataset-specific)';
+    reg(idx).paper          = 'WIOD: Lashkaripour (2021); ICIO/ITPD: CP2014 trilateral gravity';
     reg(idx).native_sectors = 16;
-    reg(idx).classification = 'wiod_16';
+    reg(idx).classification = 'insample';
     reg(idx).implemented    = true;
-    reg(idx).getter         = @tariffwar.elasticity.sources.lashkaripour_2021;
+    reg(idx).getter         = @tariffwar.elasticity.sources.insample;
 
     idx = idx + 1;
     reg(idx).name           = 'uniform_4';
@@ -97,4 +97,5 @@ function reg = registry()
     reg(idx).classification = 'isic4_14';
     reg(idx).implemented    = true;
     reg(idx).getter         = @tariffwar.elasticity.sources.lashkaripour_lugovskyy_2023;
+
 end

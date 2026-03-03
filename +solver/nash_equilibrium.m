@@ -65,7 +65,12 @@ function [X_sol, exitflag, output] = nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, 
             fprintf('[nash] Attempt %d/%d: %s\n', attempt, max_attempts, lbl);
         end
 
-        opts = tariffwar.solver.solver_options(cfg, monitor_fcn);
+        % Last attempt: no stall monitor — let it run to MaxIter
+        if attempt < max_attempts
+            opts = tariffwar.solver.solver_options(cfg, monitor_fcn);
+        else
+            opts = tariffwar.solver.solver_options(cfg);
+        end
         [X_try, fval, ef, out] = fsolve(target, T0_cur, opts);
         out.max_residual = max(abs(fval));
 

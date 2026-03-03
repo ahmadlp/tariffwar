@@ -1,10 +1,10 @@
 function results = run(datasets, years, elasticities, varargin)
 %TARIFFWAR.RUN  Run tariff war analysis.
 %
-%   tariffwar.run('wiod', 2014, 'L21')
-%   tariffwar.run('wiod', 2014, 'L21', 'Algorithm', 'levenberg-marquardt')
-%   tariffwar.run('wiod', 2014, 'L21', 'T0_scale', [0.8, 1.2, 1.5])
-%   tariffwar.run({'wiod','icio'}, 2000:2014, {'L21','U4'})
+%   tariffwar.run('wiod', 2014, 'IS')
+%   tariffwar.run('wiod', 2014, 'IS', 'Algorithm', 'levenberg-marquardt')
+%   tariffwar.run('wiod', 2014, 'IS', 'T0_scale', [0.8, 1.2, 1.5])
+%   tariffwar.run({'wiod','icio'}, 2000:2014, {'IS','U4'})
 %
 %   Positional args:
 %     datasets     - string or cell ('wiod', 'icio', 'itpd')
@@ -13,7 +13,7 @@ function results = run(datasets, years, elasticities, varargin)
 %
 %       Abbrev  Full name                        Paper
 %       ------  ---------                        -----
-%       L21     lashkaripour_2021                Lashkaripour (2021, JIE)
+%       IS      in_sample                        In-sample (dataset-specific)
 %       U4      uniform_4                        Simonovska & Waugh (2014, JIE)
 %       CP      caliendo_parro_2015              Caliendo & Parro (2015, ReStud)
 %       BSY     bagwell_staiger_yurukoglu_2021   BSY (2021, Econometrica)
