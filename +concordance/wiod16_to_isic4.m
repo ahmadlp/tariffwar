@@ -11,7 +11,7 @@ function [map, sector_labels] = wiod16_to_isic4()
 %   The WIOD 16-sector aggregation maps NACE Rev 2 divisions (which are
 %   identical to ISIC Rev 4 at 2-digit level) as follows.
 %
-%   See also: tariffwar.build_all
+%   See also: tariffwar.pipeline.build_all
 
     % WIOD sector → ISIC Rev 4 / NACE Rev 2 divisions
     % Based on WIOD documentation and AGG_S_16.csv aggregation matrix.

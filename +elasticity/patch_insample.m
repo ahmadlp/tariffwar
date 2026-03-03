@@ -10,7 +10,7 @@ function patch_insample(varargin)
 %   from insample.m, mapped to the target sector classification via
 %   concordance chain, and re-saves. Does NOT rebuild trade or tariff cubes.
 %
-%   See also: tariffwar.elasticity.sources.insample, tariffwar.build_all
+%   See also: tariffwar.elasticity.sources.insample, tariffwar.pipeline.build_all
 
     p = inputParser;
     addParameter(p, 'dataset', 'all', @ischar);

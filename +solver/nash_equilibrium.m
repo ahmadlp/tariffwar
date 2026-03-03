@@ -4,7 +4,7 @@ function [X_sol, exitflag, output] = nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, 
 %
 %   [X_sol, exitflag, output] = tariffwar.solver.nash_equilibrium(N, S, ...)
 %
-%   Solves the baseline Nash tariff war equilibrium.
+%   Solves the Nash tariff war equilibrium.
 %   The system has 3*N unknowns:
 %     - N wage multipliers (wi_h)
 %     - N income multipliers (Yi_h)
@@ -19,7 +19,7 @@ function [X_sol, exitflag, output] = nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, 
 %     Stall monitor kills early if ||F|| stops decreasing.
 %     Best solution (by exitflag, then residual) is returned.
 %
-%   See also: tariffwar.solver.trade_war_baseline, tariffwar.solver.stall_monitor
+%   See also: tariffwar.solver.nash_equations, tariffwar.solver.stall_monitor
 
     % Build initial guess
     T0 = [cfg.solver.T0_scale.wi   * ones(N, 1); ...
@@ -27,7 +27,7 @@ function [X_sol, exitflag, output] = nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, 
           cfg.solver.T0_scale.tjik * ones(N, 1)];
 
     % Cache function handle
-    solver_fn = @tariffwar.solver.trade_war_baseline;
+    solver_fn = @tariffwar.solver.nash_equations;
     target = @(X) solver_fn(X, N, S, Yi3D, Ri3D, e_ik3D, ...
         sigma_k3D, lambda_jik3D, tjik_3D);
 

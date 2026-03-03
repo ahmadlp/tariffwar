@@ -3,8 +3,8 @@ function cubes = compute_cubes(Z, F, R, N, S)
 %
 %   cubes = tariffwar.data.compute_cubes(Z, F, R, N, S)
 %
-%   Computes all required 3D cubes from the aggregated flow data.
-%   Verbatim reproduction of Step_01_Baseline.m cube computations.
+%   Builds trade flow, trade share, income, output, and expenditure share
+%   cubes from the raw aggregated input-output matrices (Z, F, R).
 %
 %   Outputs struct with fields:
 %     .Xijs3D    - N x N x S trade flow cube
@@ -55,6 +55,6 @@ function cubes = compute_cubes(Z, F, R, N, S)
     Fj3D = repmat(sum(Fjs3D, 3), [1 1 S]);
     cubes.consjs3D = Fjs3D ./ Fj3D;
 
-    % Expenditure shares (used in Step_02 as beta_ik3D)
+    % Expenditure shares (Cobb-Douglas weights for CES aggregation)
     cubes.betajs3D = Xjs3D ./ Xj3D;
 end

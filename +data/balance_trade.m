@@ -15,17 +15,17 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
 %     Stall monitor kills early if ||F|| stops decreasing.
 %     Best solution (by exitflag, then residual) is returned.
 %
-%   See also: tariffwar.solver.balanced_trade_baseline
+%   See also: tariffwar.solver.balanced_trade_equations
 
     % Build derived cubes from Xijs3D
     Xjik_3D = Xijs3D;
-    [lambda_jik3D, Yi3D, Ri3D, beta_ik3D] = ...
+    [lambda_jik3D, Yi3D, Ri3D, e_ik3D] = ...
         tariffwar.data.compute_derived_cubes(Xjik_3D, tjik_3D, N, S);
 
     % Solve balanced trade
     X0 = [ones(N, 1); ones(N, 1)];
-    bt_fn = @tariffwar.solver.balanced_trade_baseline;
-    syst = @(X) bt_fn(X, N, S, Yi3D, Ri3D, beta_ik3D, sigma_k3D, lambda_jik3D, tjik_3D);
+    bt_fn = @tariffwar.solver.balanced_trade_equations;
+    syst = @(X) bt_fn(X, N, S, Yi3D, Ri3D, e_ik3D, sigma_k3D, lambda_jik3D, tjik_3D);
 
     bt = cfg.balance_trade;
 
@@ -106,5 +106,5 @@ function Xijs_new3D = balance_trade(Xijs3D, sigma_k3D, tjik_3D, N, S, cfg)
     AUX0 = lambda_jik3D .* (wi_h3D .^ (1 - sigma_k3D));
     AUX1 = repmat(sum(AUX0, 1), [N 1 1]);
     AUX2 = AUX0 ./ max(AUX1, eps);
-    Xijs_new3D = AUX2 .* beta_ik3D .* (Yj_h3D .* Yj3D);
+    Xijs_new3D = AUX2 .* e_ik3D .* (Yj_h3D .* Yj3D);
 end

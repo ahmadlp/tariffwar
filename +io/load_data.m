@@ -5,7 +5,7 @@ function data = load_data(dataset, year, varargin)
 %   data = tariffwar.io.load_data('icio', 2020, 'mat_dir', './mat')
 %
 %   Loads WIOD2014.mat, ICIO2020.mat, ITPD2005.mat, etc. produced by
-%   tariffwar.build_all.
+%   tariffwar.pipeline.build_all.
 %
 %   Returns a struct with:
 %     .Xjik_3D         N x N x S unbalanced trade flows
@@ -23,7 +23,7 @@ function data = load_data(dataset, year, varargin)
 %     .sigma_S          S x 1 CES parameter (= epsilon + 1)
 %     .source           string (full source name)
 %
-%   See also: tariffwar.build_all
+%   See also: tariffwar.pipeline.build_all
 
     p = inputParser;
     addRequired(p, 'dataset', @ischar);
@@ -37,7 +37,7 @@ function data = load_data(dataset, year, varargin)
 
     if ~isfile(fname)
         error('tariffwar:io:dataNotFound', ...
-            'Data file not found: %s\nRun tariffwar.build_all() first.', fname);
+            'Data file not found: %s\nRun tariffwar.pipeline.build_all() first.', fname);
     end
 
     loaded = load(fname, 'data');

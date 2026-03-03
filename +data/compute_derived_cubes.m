@@ -12,7 +12,7 @@ function [lambda_jik3D, Yi3D, Ri3D, e_ik3D] = compute_derived_cubes(Xjik_3D, tji
 %   Uses max(..., eps) guards to prevent NaN from 0/0 in country-sectors
 %   with zero trade.
 %
-%   See also: tariffwar.run, tariffwar.data.balance_trade
+%   See also: tariffwar.pipeline.run, tariffwar.data.balance_trade
 
     denom_lambda = repmat(sum(Xjik_3D, 1), [N 1 1]);
     lambda_jik3D = Xjik_3D ./ max(denom_lambda, eps);

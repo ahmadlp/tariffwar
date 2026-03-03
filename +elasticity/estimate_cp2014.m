@@ -13,7 +13,7 @@ function results = estimate_cp2014(mat_dir, dataset, years, varargin)
 %   assigned fallback). Services sector (16) always gets the fallback
 %   value since tariffs on services are typically zero.
 %
-%   Methodology (replicates ../trade_elasticity/ reference scripts):
+%   Methodology (Caliendo & Parro 2014 trilateral gravity):
 %     1. Aggregate native sectors to 16 WIOD groups (sum trade, avg tariffs)
 %     2. Form all ordered country trilaterals (i < j < n)
 %     3. Dependent variable:  Y = log(Xij*Xjn*Xni / Xji*Xnj*Xin)
@@ -36,7 +36,7 @@ function results = estimate_cp2014(mat_dir, dataset, years, varargin)
 %     .sectors       - 16x1 cell of WIOD sector labels
 %     .fallback_mask - 16x1 logical (true = used fallback)
 %
-%   See also: tariffwar.elasticity.registry, tariffwar.build_all
+%   See also: tariffwar.elasticity.registry, tariffwar.pipeline.build_all
 
     p = inputParser;
     addParameter(p, 'import_pctile_cutoff', 2.5, @isnumeric);

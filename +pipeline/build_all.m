@@ -1,9 +1,9 @@
 function build_all(varargin)
-%TARIFFWAR.BUILD_ALL  Build all data files for the tariff war analysis.
+%TARIFFWAR.PIPELINE.BUILD_ALL  Build all data files for the tariff war analysis.
 %
-%   tariffwar.build_all()
-%   tariffwar.build_all('dataset', 'wiod')
-%   tariffwar.build_all('dataset', 'icio', 'years', 2016:2021)
+%   tariffwar.pipeline.build_all()
+%   tariffwar.pipeline.build_all('dataset', 'wiod')
+%   tariffwar.pipeline.build_all('dataset', 'icio', 'years', 2016:2021)
 %
 %   Produces one .mat file per (dataset, year) containing:
 %     - Unbalanced trade cube (Xjik_3D)
@@ -14,7 +14,7 @@ function build_all(varargin)
 %
 %   No intermediate files are produced.
 %
-%   See also: tariffwar.io.load_data
+%   See also: tariffwar.io.load_data, tariffwar.pipeline.run
 
     p = inputParser;
     addParameter(p, 'dataset', 'all', @ischar);
@@ -25,7 +25,7 @@ function build_all(varargin)
     verbose = p.Results.verbose;
 
     % Output directory
-    pkg_root = fileparts(mfilename('fullpath'));
+    pkg_root = fileparts(fileparts(mfilename('fullpath')));
     outdir   = fullfile(pkg_root, 'mat');
     if ~isfolder(outdir), mkdir(outdir); end
 
