@@ -13,7 +13,7 @@ function reg = registry()
 %     .implemented    - true if values are fully encoded
 %     .getter         - function handle returning raw elasticity values
 %
-%   See also: tariffwar.build_all
+%   See also: tariffwar.pipeline.build_all
 
     reg = struct([]);
     idx = 0;

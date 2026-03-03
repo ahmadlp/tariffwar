@@ -15,7 +15,7 @@ function raw = insample()
 %
 %   Classification: insample (dataset-dependent, all vectors are WIOD-16)
 %
-%   See also: tariffwar.elasticity.registry, tariffwar.build_all
+%   See also: tariffwar.elasticity.registry, tariffwar.pipeline.build_all
 
     % WIOD: Lashkaripour (2021) Table values from SECTORAL_TRADE_ELASTICITY.csv
     raw.epsilon_wiod = [ ...

@@ -1,10 +1,10 @@
 function results = run(datasets, years, elasticities, varargin)
-%TARIFFWAR.RUN  Run tariff war analysis.
+%TARIFFWAR.PIPELINE.RUN  Run tariff war analysis.
 %
-%   tariffwar.run('wiod', 2014, 'IS')
-%   tariffwar.run('wiod', 2014, 'IS', 'Algorithm', 'levenberg-marquardt')
-%   tariffwar.run('wiod', 2014, 'IS', 'T0_scale', [0.8, 1.2, 1.5])
-%   tariffwar.run({'wiod','icio'}, 2000:2014, {'IS','U4'})
+%   tariffwar.pipeline.run('wiod', 2014, 'IS')
+%   tariffwar.pipeline.run('wiod', 2014, 'IS', 'Algorithm', 'levenberg-marquardt')
+%   tariffwar.pipeline.run('wiod', 2014, 'IS', 'T0_scale', [0.8, 1.2, 1.5])
+%   tariffwar.pipeline.run({'wiod','icio'}, 2000:2014, {'IS','U4'})
 %
 %   Positional args:
 %     datasets     - string or cell ('wiod', 'icio', 'itpd')
@@ -47,7 +47,7 @@ function results = run(datasets, years, elasticities, varargin)
 
     % Load defaults, override from varargin
     cfg = tariffwar.defaults();
-    pkg_root = fileparts(mfilename('fullpath'));
+    pkg_root = fileparts(fileparts(mfilename('fullpath')));
     output_file = fullfile(pkg_root, 'results', 'results.csv');
     for i = 1:2:numel(varargin)
         switch varargin{i}
@@ -109,11 +109,14 @@ function results = run(datasets, years, elasticities, varargin)
             Xjik_raw = d.Xjik_3D;
             if strcmp(ds, 'icio'), Xjik_raw = Xjik_raw + repmat(eye(N), [1, 1, S]); end
 
-            % Balance trade -> derived cubes -> Nash solve -> welfare
+            % Step 1: Balance trade -- remove trade deficits (zero-deficit counterfactual)
             Xjik_3D = tariffwar.data.balance_trade(Xjik_raw, sigma_k3D, d.tjik_3D, N, S, cfg);
+            % Step 2: Compute derived cubes -- trade shares, income, revenue, expenditure shares
             [lam, Yi3D, Ri3D, e_ik3D] = tariffwar.data.compute_derived_cubes(Xjik_3D, d.tjik_3D, N, S);
+            % Step 3: Solve Nash equilibrium -- find optimal tariffs via fsolve
             [X_sol, ef, out] = tariffwar.solver.nash_equilibrium(N, S, Yi3D, Ri3D, e_ik3D, sigma_k3D, lam, d.tjik_3D, cfg);
-            pct = tariffwar.welfare.compute_gains(X_sol, N, S, e_ik3D, sigma_k3D, lam, d.tjik_3D);
+            % Step 4: Compute welfare -- percent change in real income per country
+            pct = tariffwar.welfare.welfare_gains(X_sol, N, S, e_ik3D, sigma_k3D, lam, d.tjik_3D);
 
             fprintf('ef=%d iter=%d mean=%.3f%%\n', ef, out.iterations, mean(pct));
 
