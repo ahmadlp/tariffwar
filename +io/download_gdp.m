@@ -63,7 +63,7 @@ function download_gdp(data_root, verbose)
     gdp_val      = NaN(n, 1);
 
     for i = 1:n
-        r = records{i};
+        r = records(i);  % parenthesis indexing for struct array
         country_code{i} = r.country.id;
         country_name{i} = r.country.value;
         year_vec(i)     = str2double(r.date);

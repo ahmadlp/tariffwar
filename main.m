@@ -21,12 +21,12 @@ function main()
     tariffwar.io.download_all();
 
     % ===================== Step 1: Data Construction =====================
-    tariffwar.build_all('dataset', 'all', 'verbose', true);
+    %tariffwar.build_all('dataset', 'all', 'verbose', true);
 
     % ===================== Step 2: Analysis ==============================
     datasets     = {'wiod', 'icio', 'itpd'};
     years        = 2000:2022;   % run.m skips years without a .mat file
-    elasticities = {'L21', 'U4', 'CP', 'BSY', 'GYY', 'Shap', 'FGO', 'LL'};
+    elasticities = {'IS', 'U4', 'CP', 'BSY', 'GYY', 'Shap', 'FGO', 'LL'};
 
-    tariffwar.run(datasets, years, elasticities);
+   % tariffwar.run(datasets, years, elasticities);
 end

@@ -18,7 +18,7 @@ function data = load_data(dataset, year, varargin)
 %     .dataset          string
 %     .year             scalar
 %
-%   Each sigma field (e.g. data.sigma.L21) contains:
+%   Each sigma field (e.g. data.sigma.IS) contains:
 %     .epsilon_S        S x 1 trade elasticity vector
 %     .sigma_S          S x 1 CES parameter (= epsilon + 1)
 %     .source           string (full source name)
