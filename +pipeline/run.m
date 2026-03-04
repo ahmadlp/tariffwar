@@ -24,7 +24,7 @@ function results = run(datasets, years, elasticities, varargin)
 %
 %   Year coverage (from prebuilt .mat files):
 %     WIOD:  2000-2014  (44 countries, 16 sectors)
-%     ICIO:  2011-2022  (85 countries, 28 sectors)
+%     ICIO:  2011-2022  (81 countries, 28 sectors)
 %     ITPD:  2000-2019  (135 countries, 154 sectors)
 %   Years without a .mat file are silently skipped.
 %

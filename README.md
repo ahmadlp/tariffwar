@@ -179,12 +179,12 @@ All core arrays are **N x N x S** cubes where:
 - **Notes:** This is the original dataset from the paper. Results match the published tables exactly.
 
 ### OECD ICIO Extended (Inter-Country Input-Output)
-- **Countries:** 85 economies
+- **Countries:** 81 economies
 - **Sectors:** 28 (27 goods + 1 services aggregate)
 - **Years:** 2011-2022
 - **Source files:** `raw_data/Data_Preparation_Files/ICIO_Data/{year}.csv`
 - **Sector classification:** ISIC Rev 4 letter-prefix codes (A01, B05-B09, C10T12, ..., T)
-- **Notes:** All years use the Extended ICIO format (2023 edition). 50 raw sectors: 27 goods sectors (ISIC sections A, B, C) are preserved individually; 23 services sectors (D through T) are collapsed to 1 aggregate. Final demand columns are identified by suffix matching (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR). Only 81 of 85 economies have FD columns. Downloaded as two ZIP bundles from OECD (2011-2015 and 2016-2022).
+- **Notes:** All years use the Extended ICIO format (2023 edition), which has 85 raw entities. Four of these — CN1 (China domestic), CN2 (China processing exports), MX1 and MX2 (Mexico equivalents) — are sub-entities that carry only production data; their parent entities (CHN, MEX) carry only final demand. During data construction (`build_cubes_icio.m`), CN1+CN2 are aggregated into CHN and MX1+MX2 into MEX, yielding 81 countries. 50 raw sectors: 27 goods sectors (ISIC sections A, B, C) are preserved individually; 23 services sectors (D through T) are collapsed to 1 aggregate. Final demand columns are identified by suffix matching (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR). Downloaded as two ZIP bundles from OECD (2011-2015 and 2016-2022).
 
 ### USITC ITPD-S (International Trade and Production Database for Estimation)
 - **Countries:** 135 (after filtering; 246 raw)
@@ -225,7 +225,7 @@ Years without a prebuilt `.mat` file are silently skipped — so you can safely 
 | Dataset | Years | Countries (N) | Sectors (S) |
 |---------|-------|---------------|-------------|
 | `wiod` | 2000–2014 | 44 | 16 |
-| `icio` | 2011–2022 | 85 | 28 |
+| `icio` | 2011–2022 | 81 | 28 |
 | `itpd` | 2000–2019 | 135 | 154 |
 
 **Elasticity sources** (use abbreviation or full name):
@@ -337,8 +337,8 @@ The Nash solver and balanced-trade solver have independent configuration blocks 
 |---------|-----------|---|---|------|----------|----------------|-----------------|
 | WIOD 2014 | in_sample | 44 | 16 | 2.1s | 1 | -2.41% | [-33.7%, 3.6%] |
 | WIOD 2014 | uniform_4 | 44 | 16 | 2.0s | 1 | -2.42% | similar |
-| ICIO 2019 | in_sample | 85 | 28 | 95.8s | 1 | -3.18% | [-53.6%, 0.5%] |
-| ICIO 2019 | uniform_4 | 85 | 28 | 31.9s | 4 | -1.31% | [-23.1%, 10.0%] |
+| ICIO 2019 | in_sample | 81 | 28 | 95.8s | 1 | -3.18% | [-53.6%, 0.5%] |
+| ICIO 2019 | uniform_4 | 81 | 28 | 31.9s | 4 | -1.31% | [-23.1%, 10.0%] |
 | ITPD-S 2019 | uniform_4 | 135 | 154 | 395s | 3 | -2.27% | [-9.9%, -0.01%] |
 | ITPD-S 2019 | in_sample | 135 | 154 | -- | -- | Does not converge | See below |
 
@@ -398,7 +398,7 @@ This section documents errors made during development so future agents do not re
 
 ### 5. ICIO Final Demand Column Parsing
 
-**The mistake:** Initially parsed ICIO final demand (FD) columns by position: assumed FD columns start at position `N*S+1` and that all N countries have FD entries. In ICIO Extended, only 81 of 85 economies have FD columns, and the total includes 6 FD categories per country (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR) plus an OUTPUT column.
+**The mistake:** Initially parsed ICIO final demand (FD) columns by position: assumed FD columns start at position `N*S+1` and that all N countries have FD entries. In the raw ICIO Extended, 85 entities appear in the IO block but only 81 have FD columns — the 4 sub-entities (CN1, CN2, MX1, MX2) carry production data only, while their parents (CHN, MEX) carry FD only. These sub-entities are now aggregated into their parents during data construction (see `build_cubes_icio.m`). The total includes 6 FD categories per country (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR) plus an OUTPUT column.
 
 **Why it failed:** Positional parsing included the OUTPUT column as FD, misaligned country mapping, and crashed with "Index exceeds array bounds".
 
