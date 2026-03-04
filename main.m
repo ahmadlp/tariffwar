@@ -11,7 +11,7 @@ function main()
 %
 %   Year coverage:
 %     WIOD:  2000-2014  (44 countries, 16 sectors)
-%     ICIO:  2011-2022  (85 countries, 28 sectors)
+%     ICIO:  2011-2022  (81 countries, 28 sectors)
 %     ITPD:  2000-2019  (135 countries, 154 sectors)
 %   Years outside these ranges are silently skipped.
 %

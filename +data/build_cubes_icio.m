@@ -137,6 +137,54 @@ function cube = build_cubes_icio(cfg, year)
     end
 
     X_total = X_int + X_fd;
+
+    % --- Aggregate split-country entities ---
+    % OECD ICIO Extended splits China/Mexico into sub-entities for processing
+    % trade analysis. CN1 (domestic) + CN2 (processing) hold all IO data;
+    % CHN holds only final demand. Same for MX1+MX2 -> MEX.
+    agg_groups = {{'CHN', 'CN1', 'CN2'}; {'MEX', 'MX1', 'MX2'}};
+    children_to_remove = [];
+
+    for g = 1:numel(agg_groups)
+        parent_code = agg_groups{g}{1};
+        child_codes = agg_groups{g}(2:end);
+        parent_idx = find(strcmp(unique_countries, parent_code));
+        if isempty(parent_idx), continue; end
+
+        child_idx = zeros(1, numel(child_codes));
+        skip = false;
+        for c = 1:numel(child_codes)
+            idx = find(strcmp(unique_countries, child_codes{c}));
+            if isempty(idx), skip = true; break; end
+            child_idx(c) = idx;
+        end
+        if skip, continue; end
+
+        for c = 1:numel(child_idx)
+            X_total(:, parent_idx, :) = X_total(:, parent_idx, :) + X_total(:, child_idx(c), :);
+        end
+        for c = 1:numel(child_idx)
+            X_total(:, :, parent_idx) = X_total(:, :, parent_idx) + X_total(:, :, child_idx(c));
+        end
+        children_to_remove = [children_to_remove, child_idx]; %#ok<AGROW>
+
+        if cfg.verbose
+            fprintf('[build_cubes_icio] Aggregated %s into %s\n', ...
+                strjoin(child_codes, '+'), parent_code);
+        end
+    end
+
+    if ~isempty(children_to_remove)
+        keep_idx = setdiff(1:N_raw, children_to_remove);
+        X_total = X_total(:, keep_idx, :);
+        X_total = X_total(:, :, keep_idx);
+        unique_countries = unique_countries(keep_idx);
+        N_raw = numel(unique_countries);
+        if cfg.verbose
+            fprintf('[build_cubes_icio] Post-aggregation: N=%d countries\n', N_raw);
+        end
+    end
+
     Xijs3D_raw = permute(X_total, [2, 3, 1]);
 
     % --- Classify goods vs services ---
