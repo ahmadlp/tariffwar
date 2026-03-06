@@ -2,6 +2,8 @@
 
 This MATLAB package computes the welfare cost of a global tariff war in which every country simultaneously sets its optimal tariff. It implements the computationally efficient sufficient-statistics methodology developed in Proposition 2 of [Lashkaripour (2021)](#references), which characterizes Nash equilibrium tariffs as the solution to a system of 3*N* nonlinear equations in wages, incomes, and tariffs. The package supports three international trade datasets covering 44 to 135 countries, 16 to 154 sectors, and years 2000--2022. Eight alternative sources of sectoral trade elasticities are included, along with an in-sample estimation procedure. Prebuilt data files allow immediate analysis after cloning.
 
+**Interactive dashboard:** An accompanying web dashboard is available at [tradewar.app](https://tradewar.app) for exploring the results without running any code.
+
 ---
 
 ## Quick Start
