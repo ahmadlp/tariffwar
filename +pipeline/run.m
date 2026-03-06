@@ -75,11 +75,20 @@ function results = run(datasets, years, elasticities, varargin)
     reg = tariffwar.elasticity.registry();
     elas = resolve_elasticities(elasticities, reg);
 
+    % Load GDP data for dollar value conversion
+    try
+        gdp_map = tariffwar.io.load_gdp();
+    catch
+        fprintf('Warning: GDP data not available. Dollar values will be NaN.\n');
+        fprintf('Run tariffwar.io.download_gdp() to download GDP data.\n');
+        gdp_map = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    end
+
     % Open CSV
     out_dir = fileparts(output_file);
     if ~isempty(out_dir) && ~isfolder(out_dir), mkdir(out_dir); end
     fid = fopen(output_file, 'w');
-    fprintf(fid, 'Country,Year,Dataset,Elasticity,Percent_Change,Exitflag\n');
+    fprintf(fid, 'Country,Year,Dataset,Elasticity,Percent_Change,Dollar_Change,Real_GDP,Exitflag\n');
 
     % === Main loop ===
     all_results = {};
@@ -118,17 +127,51 @@ function results = run(datasets, years, elasticities, varargin)
             % Step 4: Compute welfare -- percent change in real income per country
             pct = tariffwar.welfare.welfare_gains(X_sol, N, S, e_ik3D, sigma_k3D, lam, d.tjik_3D);
 
-            fprintf('ef=%d iter=%d mean=%.3f%%\n', ef, out.iterations, mean(pct));
+            % Step 5: Convert to dollar values using GDP
+            dollar_change = NaN(N, 1);
+            country_gdp   = NaN(N, 1);
+            matched_gdp_sum = 0;
+            row_idx = 0;
+            for ci = 1:N
+                c = d.countries{ci};
+                if iscell(c), c = c{1}; end
+                if strcmp(c, 'ROW')
+                    row_idx = ci;  % handle ROW after all others
+                    continue;
+                end
+                key = sprintf('%s_%d', c, yr);
+                if gdp_map.isKey(key)
+                    country_gdp(ci)   = gdp_map(key);
+                    dollar_change(ci) = 0.01 * pct(ci) * country_gdp(ci);
+                    matched_gdp_sum   = matched_gdp_sum + country_gdp(ci);
+                end
+            end
+            % ROW GDP = World GDP minus sum of explicitly matched countries
+            if row_idx > 0
+                wld_key = sprintf('WLD_%d', yr);
+                if gdp_map.isKey(wld_key)
+                    country_gdp(row_idx)   = gdp_map(wld_key) - matched_gdp_sum;
+                    dollar_change(row_idx) = 0.01 * pct(row_idx) * country_gdp(row_idx);
+                end
+            end
+            total_cost = sum(dollar_change(~isnan(dollar_change)));
+            fprintf('ef=%d iter=%d mean=%.3f%% total_cost=$%.1fB\n', ...
+                ef, out.iterations, mean(pct), total_cost/1e9);
 
             % Write CSV rows
             for ci = 1:N
                 c = d.countries{ci};
                 if iscell(c), c = c{1}; end
-                fprintf(fid, '%s,%d,%s,%s,%.6f,%d\n', c, yr, ds, elas(ei).name, pct(ci), ef);
+                if isnan(country_gdp(ci))
+                    fprintf(fid, '%s,%d,%s,%s,%.6f,,,%d\n', c, yr, ds, elas(ei).name, pct(ci), ef);
+                else
+                    fprintf(fid, '%s,%d,%s,%s,%.6f,%.2f,%.2f,%d\n', c, yr, ds, elas(ei).name, pct(ci), dollar_change(ci), country_gdp(ci), ef);
+                end
             end
 
             all_results{end+1} = struct('dataset', ds, 'year', yr, ...
                 'elasticity', elas(ei).name, 'pct_change', pct, ...
+                'dollar_change', dollar_change, 'country_gdp', country_gdp, ...
                 'exitflag', ef, 'countries', {d.countries}); %#ok<AGROW>
         end
       end
@@ -141,9 +184,10 @@ function results = run(datasets, years, elasticities, varargin)
     results.csv_file = output_file;
     results.runs     = all_results;
     if numel(all_results) == 1
-        results.pct_change = all_results{1}.pct_change;
-        results.exitflag   = all_results{1}.exitflag;
-        results.countries  = all_results{1}.countries;
+        results.pct_change    = all_results{1}.pct_change;
+        results.dollar_change = all_results{1}.dollar_change;
+        results.exitflag      = all_results{1}.exitflag;
+        results.countries     = all_results{1}.countries;
     end
 end
 

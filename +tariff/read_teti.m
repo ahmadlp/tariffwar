@@ -23,7 +23,7 @@ function T = read_teti(year, varargin)
     % --- Find the raw CSV ---
     pkg_root = fileparts(fileparts(mfilename('fullpath')));  % +tariffwar/
     if isempty(p.Results.data_root)
-        search_dirs = {fullfile(pkg_root, 'raw_data', 'Data_Preparation_Files', 'Teti_GTD'), ...
+        search_dirs = {fullfile(pkg_root, 'raw_data', 'tariffs'), ...
                        fullfile(pkg_root, 'raw_data')};
     else
         search_dirs = {fullfile(p.Results.data_root, 'tariff data'), ...
@@ -43,19 +43,29 @@ function T = read_teti(year, varargin)
             'Teti GTD CSV not found.\nSearched: %s', strjoin(search_dirs, '\n  '));
     end
 
-    % --- Pre-filter with awk (year is column 3) ---
+    % --- Pre-filter with awk (fast) or fall back to MATLAB (slow) ---
     tmp_file = fullfile(tempdir, sprintf('teti_%d.csv', year));
 
     if p.Results.verbose
         fprintf('[read_teti] Source: %s\n', csv_path);
-        fprintf('[read_teti] Pre-filtering year %d with awk...\n', year);
     end
 
-    awk_cmd = sprintf('awk -F'','' ''NR==1 || $3==%d'' "%s" > "%s"', ...
-        year, csv_path, tmp_file);
-    [status, cmdout] = system(awk_cmd);
-    if status ~= 0
-        error('tariffwar:tariff:awkFailed', 'awk pre-filter failed: %s', cmdout);
+    [awk_ok, ~] = system('awk --version');
+    if awk_ok == 0
+        if p.Results.verbose
+            fprintf('[read_teti] Pre-filtering year %d with awk...\n', year);
+        end
+        awk_cmd = sprintf('awk -F'','' ''NR==1 || $3==%d'' "%s" > "%s"', ...
+            year, csv_path, tmp_file);
+        [status, cmdout] = system(awk_cmd);
+        if status ~= 0
+            error('tariffwar:tariff:awkFailed', 'awk pre-filter failed: %s', cmdout);
+        end
+    else
+        if p.Results.verbose
+            fprintf('[read_teti] awk not found, filtering with MATLAB (slow for large files)...\n');
+        end
+        filter_csv_by_year(csv_path, tmp_file, year, 3);
     end
 
     % --- Read filtered CSV ---
@@ -89,4 +99,24 @@ function T = read_teti(year, varargin)
 
     % Clean up temp file
     delete(tmp_file);
+end
+
+
+function filter_csv_by_year(src, dst, year, year_col)
+%FILTER_CSV_BY_YEAR  Pure-MATLAB fallback for awk pre-filtering.
+    fid_in  = fopen(src, 'r');
+    fid_out = fopen(dst, 'w');
+    header  = fgetl(fid_in);
+    fprintf(fid_out, '%s\n', header);
+    yr_str = sprintf('%d', year);
+    while ~feof(fid_in)
+        line = fgetl(fid_in);
+        if ~ischar(line), break; end
+        parts = strsplit(line, ',', 'CollapseDelimiters', false);
+        if numel(parts) >= year_col && strcmp(strtrim(parts{year_col}), yr_str)
+            fprintf(fid_out, '%s\n', line);
+        end
+    end
+    fclose(fid_in);
+    fclose(fid_out);
 end

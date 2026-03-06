@@ -1,555 +1,349 @@
-# `+tariffwar/` Package Documentation
+# Tariff War: Nash Equilibrium Tariffs in a Multi-Country, Multi-Sector Trade Model
 
-## Overview
-
-This is a Matlab `+package` namespace (`+tariffwar/`) that refactors and extends the replication code for **Lashkaripour (2021), "The Cost of a Global Tariff War: A Sufficient-Statistics Approach"**, published in the *Journal of International Economics*.
-
-The original replication code (Lashkaripour's `Replication_Files/`) consists of monolithic scripts (`Main_Table1.m`, `Main_Figure2.m`, etc.) hardcoded for WIOD data with 44 countries and 16 sectors. This package generalises the analysis so it can run on **any trade dataset** (WIOD, OECD ICIO, USITC ITPD-S) with **any trade elasticity source**, while reproducing the original results exactly on WIOD.
-
-This package is **self-contained**: all code, prebuilt data (`mat/`), and configuration live inside `+tariffwar/`. Analysis works immediately after cloning — no external data directories required. Raw data for rebuilding `.mat` files goes in `raw_data/` (gitignored).
-
-**Run everything:**
-```matlab
-tariffwar.main              % all datasets x years x elasticities -> results.csv
-```
-
-**Run a specific slice:**
-```matlab
-tariffwar.pipeline.run('wiod', 2014, 'IS')
-tariffwar.pipeline.run('wiod', 2014, 'IS', 'Algorithm', 'trust-region-dogleg')
-tariffwar.pipeline.run({'wiod','icio'}, 2000:2022, {'IS','U4'})
-```
+This MATLAB package computes the welfare cost of a global tariff war in which every country simultaneously sets its optimal tariff. It implements the computationally efficient sufficient-statistics methodology developed in Proposition 2 of [Lashkaripour (2021)](#references), which characterizes Nash equilibrium tariffs as the solution to a system of 3*N* nonlinear equations in wages, incomes, and tariffs. The package supports three international trade datasets covering 44 to 135 countries, 16 to 154 sectors, and years 2000--2022. Eight alternative sources of sectoral trade elasticities are included, along with an in-sample estimation procedure. Prebuilt data files allow immediate analysis after cloning.
 
 ---
 
-## Directory Structure
+## Quick Start
+
+```matlab
+addpath('..')                                    % add parent of +tariffwar to MATLAB path
+tariffwar.pipeline.run('wiod', 2014, 'IS')       % single dataset-year-elasticity
+tariffwar.main                                    % full grid: all datasets x years x elasticities
+```
+
+**Output:** `results/results.csv` with country-level welfare changes (percent and dollars).
+
+**Prerequisites:** MATLAB R2016b or later with the Optimization Toolbox. See [Prerequisites](#prerequisites) for data-rebuild dependencies.
+
+---
+
+## Methodology
+
+The analysis follows **Proposition 2** of Lashkaripour (2021), which derives a sufficient-statistics characterization of Nash equilibrium tariffs in a multi-country, multi-sector CES trade model. Each country *i* simultaneously chooses a uniform tariff *t_i* to maximize national welfare, taking all other countries' tariffs as given. The equilibrium is the fixed point of this best-response mapping.
+
+### System of equations
+
+The solver finds the root of a system of 3*N* equations in 3*N* unknowns, stacked as *X* = [*w&#x302;*; *Y&#x302;*; *t*], where *w&#x302;* and *Y&#x302;* denote proportional changes in wages and incomes (hat algebra) and *t* is the vector of optimal tariff levels.
+
+**Equation 6 -- Market clearing (wage income).** Total export revenue of country *i*, net of tariffs collected by importers, equals its wage bill:
+
+> *w&#x302;_i* &middot; *R_i* = &sum;_j &sum;_k &lambda;'_jik &middot; *e_ik* &middot; *Y&#x302;_j* &middot; *Y_j* / (1 + *t_jik*)
+
+where &lambda;'_jik is the updated bilateral trade share (CES demand), *e_ik* is the Cobb-Douglas expenditure weight, and *R_i* is initial wage revenue. The last equation (*i* = *N*) is replaced by a world-wage normalization: &sum;_i *R_i* (*w&#x302;_i* - 1) = 0.
+
+**Equation 7 -- Budget constraint (national income).** National income equals wage income plus tariff revenue:
+
+> *Y&#x302;_i* &middot; *Y_i* = *w&#x302;_i* &middot; *R_i* + &sum;_j &sum;_k [*t_jik* / (1 + *t_jik*)] &middot; &lambda;'_jik &middot; *e_ik* &middot; *Y&#x302;_j* &middot; *Y_j*
+
+**Equation 14 -- Optimal tariff (first-order condition).** The Nash tariff equates the marginal benefit of terms-of-trade improvement to the marginal cost of trade distortion:
+
+> *t_i* = 1 + 1 / &sum;_k (&sigma;_k - 1) &middot; &omega;_ik
+
+where &sigma;_k is the CES elasticity of substitution in sector *k* and &omega;_ik is a trade-weighted inverse supply elasticity measuring how foreign exporters' trade shares respond to country *i*'s tariff.
+
+### Welfare computation
+
+Welfare changes are computed via hat algebra. The real-income change for country *i* is:
+
+> *W&#x302;_i* = *Y&#x302;_i* / *P&#x302;_i*
+
+where the aggregate price index *P&#x302;_i* is a Cobb-Douglas aggregate of sectoral CES price indices:
+
+> *P&#x302;_i* = &prod;_k [&sum;_j &lambda;_jik &middot; (*t&#x302;_jik* &middot; *w&#x302;_j*)^(1 - &sigma;_k)]^(*e_ik* / (1 - &sigma;_k))
+
+The welfare gain is reported as 100 &middot; (*W&#x302;_i* - 1) percent.
+
+### Solver
+
+The system is solved with MATLAB's `fsolve` using the Levenberg-Marquardt algorithm. On failure, the solver retries up to three times with random scalar initial guesses. A stall monitor terminates runs early when the residual norm stops decreasing. The balanced-trade pre-processing step (zero-deficit counterfactual) uses `trust-region-dogleg` with `levenberg-marquardt` as fallback. See [Convergence Strategy](#convergence-strategy) for details.
+
+---
+
+## In-Sample Elasticity Estimation
+
+The in-sample (`IS`) elasticity source estimates sector-level trade elasticities directly from the data using the **trilateral ratio identification strategy** of [Caliendo and Parro (2015)](#references). This approach differences out all bilateral fixed effects (trade costs, multilateral resistance) by forming ratios of trade flows across ordered country triplets.
+
+### Identification
+
+For each sector *k* and each ordered country triplet (*i* < *j* < *n*):
+
+- **Dependent variable:** *Y* = log(*X_ij* &middot; *X_jn* &middot; *X_ni* / *X_ji* &middot; *X_nj* &middot; *X_in*)
+- **Regressor:** *X* = log(*t_ij* &middot; *t_jn* &middot; *t_ni* / *t_ji* &middot; *t_nj* &middot; *t_in*)
+
+where *X_ij* is the bilateral trade flow from *i* to *j* and *t_ij* = 1 + tariff rate imposed by *j* on imports from *i*.
+
+### Estimation
+
+The trade elasticity &epsilon;_k = -&beta;_k is recovered from OLS:
+
+- Country fixed effects via Frisch-Waugh-Lovell (FWL) projection, no constant term
+- HC1 (heteroskedasticity-consistent) robust standard errors
+- Observations pooled across all available years for each dataset
+
+### Sample construction
+
+1. **Sector aggregation.** Native sectors are aggregated to the 16-sector WIOD classification (trade flows summed, tariffs averaged) before estimation.
+2. **Country trimming.** Countries below the 2.5th percentile of total imports are excluded.
+3. **Outlier trimming.** Observations outside the [1st, 99th] percentile of *Y* are dropped.
+4. **Minimum observations.** Sectors with fewer than 30 valid trilateral observations receive a fallback value of &epsilon; = 4.0.
+5. **Services.** The services sector is assigned &epsilon; = 5.0 (WIOD) or &epsilon; = 4.0 (ICIO, ITPD) because tariffs on services are typically zero, precluding identification.
+
+### Dataset-specific notes
+
+- **WIOD:** Elasticities are taken directly from Table 1 of [Lashkaripour (2021)](#references), who estimates them on WIOD 2000--2014 using the same trilateral method.
+- **ICIO:** Estimation pools ICIO Extended 2011--2022. Sectors with low tariff variation (computers, electrical, machinery, transport, other manufacturing) are pooled and receive the fallback.
+- **ITPD:** Estimation pools ITPD-S 2000--2019. Agriculture and mining are pooled due to overlapping HS classifications.
+
+---
+
+## Data Sources
+
+The package uses five publicly available data sources. Raw data is downloaded automatically by `tariffwar.io.download_all()` and stored in `raw_data/` (gitignored). Prebuilt `.mat` files in `mat/` allow analysis without downloading raw data.
+
+| Dataset | Countries | Sectors | Years | Size |
+|---------|-----------|---------|-------|------|
+| WIOD 2016 Release | 44 (43 + RoW) | 16 (15 goods + 1 services) | 2000--2014 | ~877 MB |
+| OECD ICIO Extended 2023 | 81 | 28 (27 goods + 1 services) | 2011--2022 | ~500 MB |
+| USITC ITPD-S R1.1 | 135 (filtered from 246) | 154 (153 goods + 1 services) | 2000--2019 | ~1 GB |
+| Teti Global Tariff Database | bilateral | ISIC Rev. 3.3 | 1988--2021 | ~240 KB |
+| World Bank WDI | 189+ | GDP (constant 2015 USD) | 1960--present | ~2 MB |
+
+### Citations
+
+- **WIOD 2016 Release.** Timmer, M.P., Dietzenbacher, E., Los, B., Stehrer, R., and de Vries, G.J. (2015). "An Illustrated User Guide to the World Input-Output Database: The Case of Global Automotive Production." *Review of International Economics*, 23(3), 575--605. Data: [doi.org/10.34894/PJ2M1C](https://doi.org/10.34894/PJ2M1C).
+
+- **OECD ICIO Extended 2023.** OECD (2023). Inter-Country Input-Output Tables, 2023 edition. [oecd.org/en/data/datasets/inter-country-input-output-tables.html](https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html).
+
+- **USITC ITPD-S R1.1.** Borchert, I., Larch, M., Shikher, S., and Yotov, Y.V. (2022). "The International Trade and Production Database for Estimation (ITPD-E)." *International Economics*, 170, 140--166. Data: [usitc.gov/data/gravity/itpds](https://www.usitc.gov/data/gravity/itpds).
+
+- **Teti Global Tariff Database.** Teti, F. (2024). "30+ Years of Trade Policy: Evidence from 160 Countries." ECARES Working Paper 2024-04.
+
+- **World Bank WDI.** World Bank (2024). World Development Indicators. Indicator NY.GDP.MKTP.KD (GDP, constant 2015 US$). [data.worldbank.org](https://data.worldbank.org).
+
+---
+
+## Trade Elasticity Sources
+
+The package includes eight sources of sectoral trade elasticities, selectable by abbreviation or full name. When the source classification differs from the target dataset, a concordance matrix maps elasticities to the appropriate sectors (infrastructure in `+concordance/`).
+
+| Abbrev | Source | Sectors | Classification |
+|--------|--------|---------|----------------|
+| `IS` | In-sample (dataset-specific); see [In-Sample Estimation](#in-sample-elasticity-estimation) | 16 | WIOD-16 |
+| `U4` | Simonovska and Waugh (2014) | 1 (uniform &sigma; = 4) | -- |
+| `CP` | Caliendo and Parro (2015) | 20 | ISIC Rev. 3 |
+| `BSY` | Bagwell, Staiger, and Yurukoglu (2021) | 49 | SITC Rev. 2 |
+| `GYY` | Giri, Yi, and Yilmazkuday (2021) | 19 | OECD |
+| `Shap` | Shapiro (2016) | 13 | HS sections |
+| `FGO` | Fontagn&eacute;, Guimbard, and Orefice (2022) | 19 | TiVA |
+| `LL` | Lashkaripour and Lugovskyy (2023) | 14 | ISIC Rev. 4 |
+
+Full citations are in the [References](#references) section.
+
+---
+
+## Code Structure
 
 ```
 +tariffwar/
 |-- main.m                       One-click runner: download -> build -> analyze
-|-- defaults.m                   Solver defaults and paths (user-editable)
+|-- defaults.m                   Solver defaults and paths
 |-- mat/                         Prebuilt .mat files (analysis works immediately)
-|-- raw_data/                    Downloaded external data (only needed for rebuild)
-|-- results/                     Analysis output CSV (generated by pipeline.run)
+|-- raw_data/                    Downloaded external data (gitignored)
+|   |-- wiod/                    WIOD CSV files
+|   |-- icio/                    ICIO CSV files
+|   |-- itpd/                    ITPD-S CSV files
+|   |-- tariffs/                 Teti GTD tariff data
+|   |-- gdp/                     World Bank GDP data
+|   |-- metadata/                Sector aggregation and country list
+|-- results/                     Analysis output (generated by pipeline.run)
 |
-|-- +pipeline/                   Analysis engine (called by main.m)
-|   |-- run.m                    Analysis: load -> balance -> solve -> welfare
-|   |-- build_all.m              Data construction (builds mat/ files from raw CSVs)
+|-- +pipeline/                   Analysis engine
+|   |-- run.m                    Load -> balance -> solve -> welfare -> CSV
+|   |-- build_all.m              Build .mat files from raw CSVs
 |
 |-- +solver/                     Nash equilibrium solver
-|   |-- nash_equilibrium.m       Solves 3N-unknown system via fsolve (initial-guess retry)
-|   |-- nash_equations.m          System of equations (Eqs 6, 7, 14)
-|   |-- balanced_trade_equations.m Balanced-trade (D=0) system of equations
-|   |-- solver_options.m         Builds optimoptions struct from config
-|   |-- stall_monitor.m          OutputFcn for fsolve stall detection
+|   |-- nash_equilibrium.m       3N-unknown system via fsolve (retry logic)
+|   |-- nash_equations.m         Equations 6, 7, 14 from Lashkaripour (2021)
+|   |-- balanced_trade_equations.m  Balanced-trade (D=0) system
+|   |-- solver_options.m         Builds optimoptions struct
+|   |-- stall_monitor.m          OutputFcn for stall detection
 |
 |-- +welfare/                    Welfare computation
-|   |-- welfare_gains.m          Hat-algebra welfare calculation (percent changes)
+|   |-- welfare_gains.m          Hat-algebra welfare (percent changes)
 |
-|-- +data/                       Trade balancing, derived cubes, cube builders
-|   |-- balance_trade.m          DEK balanced-trade exercise (fsolve, 2N unknowns, algorithm-switch retry)
-|   |-- compute_derived_cubes.m  Builds lambda, Yi, Ri, e_ik from trade cubes
-|   |-- build_cubes_wiod.m       Build unbalanced cube from WIOD CSV
-|   |-- build_cubes_icio.m       Build unbalanced cube from ICIO CSV
-|   |-- build_cubes_itpd.m       Build unbalanced cube from ITPD-S CSV
-|   |-- compute_cubes.m          Generic cube computation from Z, F, R matrices
-|   |-- inventory_correct.m      Leontief INV=0 correction for WIOD
-|   |-- aggregate_sectors.m      Sector aggregation via Kronecker product
+|-- +data/                       Data processing
+|   |-- balance_trade.m          Balanced-trade solver (2N unknowns)
+|   |-- compute_derived_cubes.m  Trade shares, income, revenue, expenditure
+|   |-- build_cubes_wiod.m       WIOD CSV -> cube
+|   |-- build_cubes_icio.m       ICIO CSV -> cube
+|   |-- build_cubes_itpd.m       ITPD-S CSV -> cube
+|   |-- compute_cubes.m          Z, F, R matrices -> cube
+|   |-- inventory_correct.m      Leontief INV=0 correction (WIOD)
+|   |-- aggregate_sectors.m      Sector aggregation
 |
-|-- +io/                         File I/O and data download
-|   |-- load_data.m              Loads prebuilt .mat files from mat/
-|   |-- download_all.m           Master download orchestrator (idempotent)
-|   |-- download_wiod.m          WIOD 2016 Release (XLSB -> CSV)
-|   |-- download_icio.m          OECD ICIO 2023 tables
+|-- +io/                         File I/O and download
+|   |-- load_data.m              Load prebuilt .mat files
+|   |-- load_gdp.m               Load GDP data
+|   |-- download_all.m           Master download (idempotent)
+|   |-- download_wiod.m          WIOD 2016 Release
+|   |-- download_icio.m          OECD ICIO Extended 2023
 |   |-- download_itpd.m          USITC ITPD-S R1.1
-|   |-- download_tariffs.m       Teti GTD tariffs (Dropbox, browser + py7zr)
-|   |-- download_gdp.m           World Bank WDI GDP
-|   |-- robust_download.m        Shared download helper (CDN anti-bot handling)
+|   |-- download_tariffs.m       Teti GTD (browser-based)
+|   |-- download_gdp.m           World Bank WDI (API)
+|   |-- robust_download.m        CDN anti-bot handling
 |
-|-- +elasticity/                 Trade elasticity sources
-|   |-- registry.m               Master registry (8 sources, all implemented)
-|   |-- estimate_cp2014.m        In-sample estimation (Caliendo-Parro trilateral gravity)
+|-- +elasticity/                 Trade elasticity infrastructure
+|   |-- registry.m               Master registry (8 sources)
+|   |-- estimate_cp2014.m        In-sample CP2014 trilateral gravity
 |   |-- patch_insample.m         Utility: patch .mat files with IS sigma
-|   |-- +sources/                Individual source implementations (8 files)
+|   |-- +sources/                Individual elasticity implementations (8 files)
 |
-|-- +concordance/                Sector-mapping concordance matrices (10 files)
+|-- +concordance/                Sector-mapping matrices (10 files)
 |-- +tariff/                     Tariff data readers
 ```
 
+### Key data structures
+
+All core arrays are **N x N x S** cubes where dimension 1 = exporter *j*, dimension 2 = importer *i*, dimension 3 = sector *k*.
+
+| Variable | Description |
+|----------|-------------|
+| `Xjik_3D` | Bilateral trade flow (*j* exports to *i* in sector *k*) |
+| `tjik_3D` | Applied tariff rate (*i* charges on imports from *j* in sector *k*) |
+| `lambda_jik3D` | Trade share: *X_jik* / &sum;_j *X_jik*. Sums to 1 over *j* |
+| `Yi3D` | Total expenditure of importer *i* (replicated to N x N x S) |
+| `Ri3D` | Wage revenue of exporter *j* (replicated to N x N x S) |
+| `e_ik3D` | Expenditure share of sector *k* in country *i*. Sums to 1 over *k* |
+| `sigma_k3D` | CES elasticity of substitution (&sigma; = &epsilon; + 1) |
+
 ---
 
-## Setup
+## Prerequisites
 
-**After cloning, the analysis works immediately** — prebuilt `.mat` files are in `mat/`.
+### Analysis (using prebuilt data)
+
+- MATLAB R2016b or later
+- Optimization Toolbox (`fsolve`)
+
+### Rebuilding from raw data
+
+In addition to the above:
+
+- **Python 3** with `pandas`, `pyxlsb`, and `py7zr`:
+  ```
+  pip install pandas pyxlsb py7zr
+  ```
+- Internet connection for data download (~2.5 GB total)
+- Tariff data (Teti GTD) requires a manual browser download from Dropbox
+
+### Platform support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| macOS | Fully supported | Primary development platform |
+| Linux | Fully supported | All dependencies available via package manager |
+| Windows | Supported | Python must be on PATH; `awk` recommended for fast ITPD/tariff processing (available via Git for Windows) |
+
+---
+
+## API Reference
+
+### `tariffwar.pipeline.run(datasets, years, elasticities, ...)`
+
+Main entry point. Accepts scalar or array/cell inputs. Years without a prebuilt `.mat` file are silently skipped.
 
 ```matlab
-addpath('..')              % add parent of +tariffwar to Matlab path
-tariffwar.main            % download -> build -> analyze -> results.csv
+tariffwar.pipeline.run('wiod', 2014, 'IS')
+tariffwar.pipeline.run({'wiod','icio'}, 2000:2022, {'IS','U4','CP'})
+tariffwar.pipeline.run('wiod', 2014, 'IS', 'Algorithm', 'trust-region-dogleg')
 ```
 
-`tariffwar.main` runs the full pipeline end-to-end:
-1. **Download** raw data (`tariffwar.io.download_all` — skips if already present)
-2. **Build** `.mat` files from raw CSVs (`tariffwar.pipeline.build_all`)
-3. **Analyze** all datasets x years x elasticities (`tariffwar.pipeline.run`)
+**Year coverage** (prebuilt `.mat` files in `mat/`):
 
-Each step can also be run independently:
-```matlab
-tariffwar.io.download_all()                        % download raw data (~15 GB total)
-tariffwar.pipeline.build_all('dataset', 'wiod')    % rebuild WIOD .mat files only
-tariffwar.pipeline.run('wiod', 2014, 'IS')         % run a specific slice
-```
-
-**Prerequisites for download:** Internet connection, Python 3 with `pandas`, `pyxlsb`, and `py7zr`:
-```bash
-pip3 install pandas pyxlsb py7zr
-```
-Tariff data (Teti GTD) is hosted on Dropbox, which blocks programmatic downloads. The download function opens a browser window — click "Download" and the pipeline handles the rest.
-
----
-
-## Economic Model
-
-The model solves a **Nash equilibrium tariff war** in a multi-country, multi-sector CES trade model. Each country simultaneously sets its optimal tariff to maximise national welfare, taking other countries' tariffs as given.
-
-### System of Equations (3N unknowns)
-
-The solver finds `X = [wi_h(N); Yi_h(N); tjik(N)]` satisfying:
-
-**ERR1: Wage income = total sales net of taxes (Eq. 6)**
-```
-ERR1_i = sum_j,k( lambda'_jik * e_ik * Yj_h * Yj / (1 + t_jik) ) - wi_h_i * Ri
-ERR1(N) = sum_i( Ri * (wi_h_i - 1) )   [normalization: aggregate wage = 1]
-```
-
-**ERR2: Total income = total sales (Eq. 7)**
-```
-ERR2_i = sum_j,k( tariff_revenue_jik ) + wi_h_i * Ri - Yi_h_i * Yi
-```
-
-**ERR3: Optimal tariff formula (Eq. 14)**
-```
-ERR3_i = tjik_i - (1 + 1/max(AUX8_i, 1))
-```
-where `AUX8_i` is a weighted average of `(sigma_k - 1)` across sectors, weighted by foreign import shares.
-
-### Data Flow
-
-```
-raw CSV --> build_cubes_{wiod,icio,itpd}.m --> pipeline/build_all.m --> mat/*.mat
-                                                                          |
-                                                                      load_data.m
-                                                                          |
-       pipeline/run.m <-- balance_trade.m <-- compute_derived_cubes.m     |
-              |                                                            |
-        nash_equilibrium.m                                   N, S, Xjik_3D, tjik_3D
-              |
-        X_sol (3N vector)
-              |
-        welfare_gains.m
-              |
-        welfare_pct (N x 1) --> results.csv
-```
-
-### Key Data Structures
-
-All core arrays are **N x N x S** cubes where:
-- Dimension 1 (rows): exporter `j`
-- Dimension 2 (columns): importer `i`
-- Dimension 3 (slices): sector `k`
-
-| Variable | Meaning |
-|----------|---------|
-| `Xjik_3D` | Bilateral trade flow (j exports to i in sector k) |
-| `tjik_3D` | Applied tariff (i charges on imports from j in sector k) |
-| `lambda_jik3D` | Trade share: `X_jik / sum_j(X_jik)`. Sums to 1 over j for each (i,k) |
-| `Yi3D` | Total expenditure of importer i (replicated to NxNxS) |
-| `Ri3D` | Wage revenue of exporter j (replicated to NxNxS) |
-| `e_ik3D` | Expenditure share of sector k in country i: `sum_j(X_jik) / Yi`. Sums to 1 over k for each i |
-| `sigma_k3D` | CES elasticity of substitution for sector k (replicated to NxNxS) |
-
----
-
-## Supported Datasets
-
-### WIOD (World Input-Output Database)
-- **Countries:** 44 (43 individual + RoW)
-- **Sectors:** 16 (15 goods + 1 services aggregate)
-- **Years:** 2000-2014
-- **Source files:** `raw_data/Data_Preparation_Files/WIOD_Data/WIOT{year}.csv`
-- **Notes:** This is the original dataset from the paper. Results match the published tables exactly.
-
-### OECD ICIO Extended (Inter-Country Input-Output)
-- **Countries:** 81 economies
-- **Sectors:** 28 (27 goods + 1 services aggregate)
-- **Years:** 2011-2022
-- **Source files:** `raw_data/Data_Preparation_Files/ICIO_Data/{year}.csv`
-- **Sector classification:** ISIC Rev 4 letter-prefix codes (A01, B05-B09, C10T12, ..., T)
-- **Notes:** All years use the Extended ICIO format (2023 edition), which has 85 raw entities. Four of these — CN1 (China domestic), CN2 (China processing exports), MX1 and MX2 (Mexico equivalents) — are sub-entities that carry only production data; their parent entities (CHN, MEX) carry only final demand. During data construction (`build_cubes_icio.m`), CN1+CN2 are aggregated into CHN and MX1+MX2 into MEX, yielding 81 countries. 50 raw sectors: 27 goods sectors (ISIC sections A, B, C) are preserved individually; 23 services sectors (D through T) are collapsed to 1 aggregate. Final demand columns are identified by suffix matching (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR). Downloaded as two ZIP bundles from OECD (2011-2015 and 2016-2022).
-
-### USITC ITPD-S (International Trade and Production Database for Estimation)
-- **Countries:** 135 (after filtering; 246 raw)
-- **Sectors:** 154 (153 goods + 1 services aggregate), optionally collapsed to 16
-- **Years:** 2000-2019
-- **Source files:** `raw_data/Data_Preparation_Files/ITPD_Data/ITPD*.csv` (305M+ rows, ~5.6 GB)
-- **Notes:** See the "ITPD-S Integration" section below for the convergence challenges.
-
----
-
-## Elasticity Sources
-
-| Name | Paper | Native Sectors | Status |
-|------|-------|----------------|--------|
-| `in_sample` | Dataset-specific (see below) | 16 (WIOD) | Implemented |
-| `uniform_4` | Simonovska & Waugh (2014, JIE) | 1 (uniform sigma=4) | Implemented |
-| `caliendo_parro_2015` | Caliendo & Parro (2015, ReStud) | 20 (ISIC Rev 3) | Implemented |
-| `bagwell_staiger_yurukoglu_2021` | BSY (2021, Econometrica) | 49 (SITC Rev 2) | Implemented |
-| `giri_yi_yilmazkuday_2021` | GYY (2021, JIE) | 19 (OECD) | Implemented |
-| `shapiro_2016` | Shapiro (2016, AEJ) | 13 (HS sections) | Implemented |
-| `fontagne_2022` | Fontagne et al. (2022, JIE) | 19 (TiVA) | Implemented |
-| `lashkaripour_lugovskyy_2023` | LL (2023, AER) | 14 (ISIC Rev 4) | Implemented |
-
-When the elasticity source has a different sector classification than the target dataset, a concordance matrix is applied: `epsilon_target = C * epsilon_source`. The concordance infrastructure is in `+concordance/`.
-
----
-
-## API
-
-To run everything at once: `tariffwar.main` (downloads data, builds `.mat` files, then runs the analysis).
-
-`tariffwar.pipeline.run` accepts three positional args: `(datasets, years, elasticities)`. All accept scalar or array/cell.
-Optional name-value pairs override solver settings.
-Years without a prebuilt `.mat` file are silently skipped — so you can safely pass a wide range like `2000:2022` across all datasets.
-
-**Year coverage** (from prebuilt `.mat` files in `mat/`):
-
-| Dataset | Years | Countries (N) | Sectors (S) |
-|---------|-------|---------------|-------------|
-| `wiod` | 2000–2014 | 44 | 16 |
-| `icio` | 2011–2022 | 81 | 28 |
-| `itpd` | 2000–2019 | 135 | 154 |
-
-**Elasticity sources** (use abbreviation or full name):
-
-| Abbrev | Full name | Paper |
-|--------|-----------|-------|
-| `IS` | `in_sample` | In-sample (dataset-specific) |
-| `U4` | `uniform_4` | Simonovska & Waugh (2014, JIE) |
-| `CP` | `caliendo_parro_2015` | Caliendo & Parro (2015, ReStud) |
-| `BSY` | `bagwell_staiger_yurukoglu_2021` | BSY (2021, Econometrica) |
-| `GYY` | `giri_yi_yilmazkuday_2021` | GYY (2021, JIE) |
-| `Shap` | `shapiro_2016` | Shapiro (2016, AEJ) |
-| `FGO` | `fontagne_2022` | Fontagne et al. (2022, JIE) |
-| `LL` | `lashkaripour_lugovskyy_2023` | LL (2023, AER) |
-
-```matlab
-% Single solve
-result = tariffwar.pipeline.run('wiod', 2014, 'IS')
-
-% Override solver options
-result = tariffwar.pipeline.run('wiod', 2014, 'IS', ...
-    'Algorithm', 'trust-region-dogleg', ...
-    'MaxIter', 100, ...
-    'TolFun', 1e-8)
-
-% Custom initial guess scaling [wi, Yi, tjik]
-result = tariffwar.pipeline.run('wiod', 2014, 'IS', 'T0_scale', [0.8, 1.2, 1.5])
-
-% Grid: multiple years and elasticities
-result = tariffwar.pipeline.run('wiod', 2000:2014, {'IS', 'U4'})
-
-% Grid: multiple datasets
-result = tariffwar.pipeline.run({'wiod', 'icio'}, 2014, {'IS', 'U4'})
-```
+| Dataset | Years | *N* | *S* |
+|---------|-------|-----|-----|
+| `wiod` | 2000--2014 | 44 | 16 |
+| `icio` | 2011--2022 | 81 | 28 |
+| `itpd` | 2000--2019 | 135 | 154 |
 
 **Name-value options:**
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `'Algorithm'` | `'levenberg-marquardt'` | fsolve algorithm for Nash solver |
-| `'MaxIter'` | `50` | Max solver iterations per attempt |
-| `'MaxFunEvals'` | `Inf` | Max function evaluations |
+| `'Algorithm'` | `'levenberg-marquardt'` | `fsolve` algorithm for Nash solver |
+| `'MaxIter'` | `50` | Max iterations per attempt |
 | `'TolFun'` | `1e-6` | Function tolerance |
 | `'TolX'` | `1e-8` | Step tolerance |
-| `'Display'` | `'iter'` | Solver display |
-| `'T0_scale'` | `[0.9, 1.1, 1.25]` | Initial guess [wi, Yi, tjik] |
-| `'output_file'` | `+tariffwar/results/results.csv` | CSV output path |
-| `'max_retries'` | `3` | Restart attempts with random initial guess |
-| `'stall_window'` | `3` | Iterations before stall check |
-| `'min_progress'` | `0.10` | Min relative ||F|| decrease over sliding window |
+| `'T0_scale'` | `[0.9, 1.1, 1.25]` | Initial guess scaling [*w&#x302;*, *Y&#x302;*, *t*] |
+| `'max_retries'` | `3` | Retry attempts with random initial guess |
+| `'output_file'` | `results/results.csv` | CSV output path |
 
 ---
 
 ## Convergence Strategy
 
-The Nash equilibrium solver and the trade-balancing step use different retry strategies. Each solver is self-contained — no warm-start or cross-specification coupling. Both use aggressive stall detection to kill runs that are going nowhere.
+### Nash equilibrium: initial-guess retry
 
-### Nash Equilibrium: Initial-Guess Retry
+The Nash solver uses Levenberg-Marquardt with 1 + `max_retries` attempts. On failure, it retries with random scalar initial guesses:
 
-The Nash solver (`nash_equilibrium.m`) uses a single algorithm (`levenberg-marquardt`) with `1 + max_retries` attempts. On failure, it retries with fresh random scalar initial guesses:
+| Attempt | Initial guess |
+|---------|---------------|
+| 1 | Default from `T0_scale` |
+| 2--4 | Random: *w&#x302;* ~ U(0.7, 1.3), *Y&#x302;* ~ U(0.7, 1.3), *t* ~ U(1.1, 1.5) |
 
-| Attempt | Algorithm | Initial Guess |
+Each scalar is drawn once and applied uniformly to all *N* countries. The attempt with the best exit flag (or smallest residual on ties) is returned.
+
+### Balanced trade: algorithm-switch retry
+
+| Attempt | Algorithm | Initial guess |
 |---------|-----------|---------------|
-| 1 | `levenberg-marquardt` | Default T0 from `cfg.solver.T0_scale` |
-| 2..4 | `levenberg-marquardt` | Random scalar: wi ~ U(0.7,1.3), Yi ~ U(0.7,1.3), tjik ~ U(1.1,1.5) |
+| 1 | `trust-region-dogleg` | Ones |
+| 2 | `levenberg-marquardt` | Random scalar |
 
-Each scalar is drawn once and applied uniformly to all N countries (not per-country random draws). If any attempt converges (`exitflag > 0`), remaining attempts are skipped. Otherwise, the attempt with the best exitflag (or lowest max residual on ties) is returned.
+### Stall monitor
 
-### Balanced Trade: Algorithm-Switch Retry
+Both solvers use an `OutputFcn` that kills the solver when progress stalls:
 
-The balanced-trade solver (`balance_trade.m`) tries two attempts with different algorithms:
-
-| Attempt | Algorithm | Initial Guess |
-|---------|-----------|---------------|
-| 1 | `trust-region-dogleg` | Default `X0 = [ones(N,1); ones(N,1)]` |
-| 2 | `levenberg-marquardt` | Random scalar: wi ~ U(0.7,1.3), Yi ~ U(0.7,1.3) |
-
-### Stall Monitor
-
-Both solvers attach an `OutputFcn` (`stall_monitor.m`) that tracks the residual norm across iterations and kills the solver early when progress stalls. The monitor resets between retry attempts. Two checks are applied:
-
-1. **1000x gate:** After `stall_window` iterations (default: 3), the residual must have dropped by at least 1000x from the initial value. If not, the solver is killed immediately. This prevents wasting iterations when the solver is stuck near a large residual.
-
-2. **Sliding window check:** After the initial gate passes, the monitor checks every subsequent iteration whether the residual has decreased by at least `min_progress` (default: 10%) relative to `stall_window` iterations ago. If not, the solver is killed.
-
-### Separate Configuration
-
-The Nash solver and balanced-trade solver have independent configuration blocks in `defaults.m`:
-
-| Parameter | Nash (`cfg.solver.*`) | Balanced Trade (`cfg.balance_trade.*`) |
-|-----------|----------------------|---------------------------------------|
-| `algorithm` | `'levenberg-marquardt'` | `'trust-region-dogleg'` |
-| `algorithm_fallback` | -- | `'levenberg-marquardt'` |
-| `max_retries` | `3` | -- (always 2 attempts) |
-| `T0_range.wi` | `[0.7, 1.3]` | `[0.7, 1.3]` |
-| `T0_range.Yi` | `[0.7, 1.3]` | `[0.7, 1.3]` |
-| `T0_range.tjik` | `[1.1, 1.5]` | -- |
-| `MaxIter` | `50` | `50` |
-| `TolFun` | `1e-6` | `1e-6` |
-| `TolX` | `1e-8` | `1e-8` |
-| `stall_window` | `3` | `3` |
-| `min_progress` | `0.10` | `0.10` |
+1. **Initial gate:** After `stall_window` iterations, the residual must have dropped by at least 1000x from the initial value.
+2. **Sliding window:** Each subsequent iteration must show at least 10% improvement relative to `stall_window` iterations ago.
 
 ---
 
 ## Validated Results
 
-| Dataset | Elasticity | N | S | Time | Exitflag | Welfare (mean) | Welfare (range) |
-|---------|-----------|---|---|------|----------|----------------|-----------------|
-| WIOD 2014 | in_sample | 44 | 16 | 2.1s | 1 | -2.41% | [-33.7%, 3.6%] |
-| WIOD 2014 | uniform_4 | 44 | 16 | 2.0s | 1 | -2.42% | similar |
-| ICIO 2019 | in_sample | 81 | 28 | 95.8s | 1 | -3.18% | [-53.6%, 0.5%] |
-| ICIO 2019 | uniform_4 | 81 | 28 | 31.9s | 4 | -1.31% | [-23.1%, 10.0%] |
-| ITPD-S 2019 | uniform_4 | 135 | 154 | 395s | 3 | -2.27% | [-9.9%, -0.01%] |
-| ITPD-S 2019 | in_sample | 135 | 154 | -- | -- | Does not converge | See below |
+| Dataset | Elasticity | *N* | *S* | Time | Exitflag | Mean welfare |
+|---------|-----------|-----|-----|------|----------|--------------|
+| WIOD 2014 | IS | 44 | 16 | 2.1 s | 1 | -2.41% |
+| WIOD 2014 | U4 | 44 | 16 | 2.0 s | 1 | -2.42% |
+| ICIO 2019 | IS | 81 | 28 | 95.8 s | 1 | -3.18% |
+| ICIO 2019 | U4 | 81 | 28 | 31.9 s | 4 | -1.31% |
+| ITPD-S 2019 | U4 | 135 | 154 | 395 s | 3 | -2.27% |
 
-**Exitflag key:** 1 = converged, 3 = residual near zero but last step ineffective, 4 = step smaller than tolerance. All positive exitflags indicate acceptable convergence.
-
----
+WIOD 2014 with in-sample elasticities reproduces Table 1 of Lashkaripour (2021). Exit flag 1 = converged; 3 = residual small but last step ineffective; 4 = step smaller than tolerance.
 
 ---
 
-## Mistakes Made and Lessons Learned
+## References
 
-This section documents errors made during development so future agents do not repeat them.
+Bagwell, K., Staiger, R.W., and Yurukoglu, A. (2021). "Multilateral Trade Bargaining: A First Look at the GATT Bargaining Records." *Econometrica*, 89(4), 1723--1764.
 
-### 1. Equation Rescaling Breaks Convergence for Large N
+Borchert, I., Larch, M., Shikher, S., and Yotov, Y.V. (2022). "The International Trade and Production Database for Estimation (ITPD-E)." *International Economics*, 170, 140--166.
 
-**The mistake:** To improve solver conditioning, the Nash equilibrium equations were rescaled by dividing each country's ERR1 by its `Ri` (wage revenue) and ERR2 by its `Yi` (income). The intention was to normalise all equations to O(1).
+Caliendo, L. and Parro, F. (2015). "Estimates of the Trade and Welfare Effects of NAFTA." *Review of Economic Studies*, 82(1), 1--44.
 
-**Why it failed:** The last equation, `ERR1(N)`, is not a per-country wage equation. It is a **normalisation constraint**: `ERR1(N) = sum_i(Ri * (wi_hat - 1))`. Its magnitude scales with `sum(Ri)` (total world revenue), but the rescaling divided it by `Ri_N` (country N's revenue). When country N is a small economy (e.g. `Ri_N = 1.1e4` while `sum(Ri) = 1.1e8`), the rescaled residual becomes ~10000x larger than all other equations, dominating `||f||^2` and stalling the solver.
+Fontagn&eacute;, L., Guimbard, H., and Orefice, G. (2022). "Tariff-Based Product-Level Trade Elasticities." *Journal of International Economics*, 137, 103593.
 
-**Diagnostic evidence:** For N=66: rescaled `||ceq||^2 = 2871`, max|ERR1_scaled| = 53.6, solver converged in 4 iterations. For N=135: rescaled `||ceq||^2 = 81930`, max|ERR1_scaled| = 286, solver stalled at `||f||^2 ~ 0.5` for 200+ iterations.
+Giri, R., Yi, K.-M., and Yilmazkuday, H. (2021). "Gains from Trade: Does Sectoral Heterogeneity Matter?" *Journal of International Economics*, 129, 103429.
 
-**The fix:** Removed all equation rescaling. The original replication code passes raw (unscaled) equations to fsolve. This works because fsolve's trust-region-dogleg algorithm internally handles scale differences through the Jacobian. With this fix, N=135 converges in 8 iterations.
+Lashkaripour, A. (2021). "The Cost of a Global Tariff War: A Sufficient-Statistics Approach." *Journal of International Economics*, 131, 103489.
 
-**Lesson:** Never rescale equations when one equation has a fundamentally different structure from the rest. If you must rescale, inspect every equation to verify its actual magnitude (not just its conceptual scaling). The normalisation equation `sum(Ri * (wi-1))` scales with world totals, not with any single country's Ri.
+Lashkaripour, A. and Lugovskyy, V. (2023). "Profits, Scale Economies, and the Gains from Trade and Industrial Policy." *American Economic Review*, 113(10), 2759--2808.
 
-### 2. Using `optimset` Instead of `optimoptions` for fsolve
+Shapiro, J.S. (2016). "Trade Costs, CO2, and the Environment." *American Economic Journal: Economic Policy*, 8(4), 220--254.
 
-**The mistake:** Initially used the legacy `optimset` function to configure fsolve options, following the original replication code. However, `optimset` does not reliably pass the `'Algorithm'` parameter to `fsolve` in modern Matlab (R2024b).
+Simonovska, I. and Waugh, M.E. (2014). "The Elasticity of Trade: Estimates and Evidence." *Journal of International Economics*, 92(1), 34--50.
 
-**Why it mattered:** The solver silently used the default algorithm instead of the specified one. When debugging solver performance, it was unclear which algorithm was actually running.
+Teti, F. (2024). "30+ Years of Trade Policy: Evidence from 160 Countries." ECARES Working Paper 2024-04.
 
-**The fix:** Switched to `optimoptions('fsolve', ...)`, which is the modern API and reliably sets all parameters including `'Algorithm'`. Note the parameter name changes: `MaxFunEvals` becomes `MaxFunctionEvaluations`, `MaxIter` becomes `MaxIterations`, `TolFun` becomes `FunctionTolerance`, `TolX` becomes `StepTolerance`.
-
-**Lesson:** Always use `optimoptions` (not `optimset`) for `fsolve` in Matlab R2016b+. The legacy API has undocumented incompatibilities with newer solver features.
-
-### 3. Algorithm Selection: Levenberg-Marquardt vs Trust-Region-Dogleg
-
-**The mistake:** The original replication code uses `levenberg-marquardt` for the Nash solver. This was initially carried over to the package. For WIOD (N=44, S=16), LM works fine. But for larger problems (N=135, S=154), LM requires computing a full dense Jacobian via finite differences: `(3N+1)` function evaluations per iteration, each operating on N x N x S cubes. For N=135, S=154, this means 406 evaluations per iteration on 2.8M-element cubes.
-
-**Why it failed:** The LM iterations were extremely slow (~1.5 minutes each) and convergence was poor. The solver ran for 58+ minutes without converging on ITPD-S N=135.
-
-**Initial fix:** Switched to `trust-region-dogleg`, which is Matlab's default for `fsolve`. Despite having the same per-iteration cost (both require full Jacobian), trust-region-dogleg converges in far fewer iterations for this problem class: 4-8 iterations vs 200+.
-
-**Current approach:** The Nash solver uses `levenberg-marquardt` only, retrying with random scalar initial guesses on failure (no algorithm switching). The balanced-trade solver uses `trust-region-dogleg` as default with `levenberg-marquardt` as fallback. See the "Convergence Strategy" section for details.
-
-**Lesson:** No single fsolve algorithm works universally. `trust-region-dogleg` is generally better for square nonlinear systems but can collapse (exitflag=-3). `levenberg-marquardt` is more robust but slower. For the Nash solver, switching initial guesses is more effective than switching algorithms.
-
-### 4. AUX8 Floor: Using `eps` Instead of `1`
-
-**The mistake:** In the optimal tariff formula (ERR3), the inverse elasticity term is `1/AUX8` where `AUX8 = sum((sigma_k - 1) * AUX7)`. For countries with negligible foreign trade (nearly autarkic), `AUX8 ~ 0`. The initial guard was `max(AUX8, eps)`, making `1/eps ~ 4.5e15`.
-
-**Why it failed:** ERR3 for autarkic countries became `tjik - (1 + 4.5e15)`, which is astronomically large and blows up `||f||^2` to ~1e31. The solver cannot reduce this because any reasonable tariff is dwarfed by 4.5e15.
-
-**The fix:** Changed the floor from `eps` to `1`: `ERR3 = tjik - (1 + 1/max(AUX8, 1))`. This caps the optimal tariff at 200% for autarkic countries, which is economically reasonable (a country with no foreign trade has no incentive to set finite tariffs, so any large value works as a "don't care" placeholder).
-
-**Lesson:** When guarding against division by zero, the floor value must produce economically sensible outputs. `eps` is the right floor when you want to prevent `0/0 = NaN` in share computations (where the result should be 0). But `1/eps = 4.5e15` is never a sensible tariff rate. Always trace through to the final output to check what the floor value implies.
-
-### 5. ICIO Final Demand Column Parsing
-
-**The mistake:** Initially parsed ICIO final demand (FD) columns by position: assumed FD columns start at position `N*S+1` and that all N countries have FD entries. In the raw ICIO Extended, 85 entities appear in the IO block but only 81 have FD columns — the 4 sub-entities (CN1, CN2, MX1, MX2) carry production data only, while their parents (CHN, MEX) carry FD only. These sub-entities are now aggregated into their parents during data construction (see `build_cubes_icio.m`). The total includes 6 FD categories per country (HFCE, NPISH, GGFC, GFCF, INVNT, DPABR) plus an OUTPUT column.
-
-**Why it failed:** Positional parsing included the OUTPUT column as FD, misaligned country mapping, and crashed with "Index exceeds array bounds".
-
-**The fix:** Rewrote FD column identification to use **suffix matching**: iterate over all columns after the IO block, check if the column name ends with `_HFCE`, `_NPISH`, etc. Then extract the country code prefix and match it to the IO country ordering via `ismember`.
-
-**Lesson:** Never assume column positions in third-party datasets. OECD ICIO has 4738 columns with a complex structure. Always identify columns by their names/patterns, not by position.
-
-### 6. ICIO Concordance for Extended Format (28 vs 21 Sectors)
-
-**The mistake:** The initial `wiod16_to_icio.m` concordance was hardcoded for the standard ICIO format with 20 goods sectors + 1 services = 21 total. The ICIO Extended (2016-2022) format has 27 goods sectors + 1 services = 28 total, with different ISIC codes (A01 through T instead of C01T03 through C97T98).
-
-**Why it failed:** Dimension mismatch: the concordance returned a 21x16 matrix but the data had S=28 sectors.
-
-**The fix:** Complete rewrite of `wiod16_to_icio.m` with a mapping table for all 27 ICIO Extended goods sectors to the appropriate WIOD-16 parent sector. The function dispatches on `S_target` (28 for Extended, 23 for SML, 22 for Standard).
-
-**Lesson:** Dataset formats evolve. The OECD ICIO "Extended" tables have a fundamentally different sector structure than the standard tables. Always check actual file headers before writing parsers. All years (2011-2022) now use the Extended format for consistency.
-
-### 7. NaN Propagation from Zero-Trade Flows
-
-**The mistake:** ITPD-S data has many genuine zero bilateral trade flows (e.g. Bhutan does not export semiconductors). Computing `lambda_jik = X_jik / sum_j(X_jik)` produces `0/0 = NaN` when `sum_j(X_jik) = 0` for some (i,k). These NaNs propagate silently through all subsequent computations.
-
-**Why it failed:** fsolve reported "Objective function is returning undefined values at initial point".
-
-**The fix:** Two-pronged approach:
-1. **`max(denominator, eps)` guards** in all division operations (`balance_trade.m`, `run.m`, `nash_equations.m`, `welfare_gains.m`). When the denominator is 0, the result is `0/eps = 0`, which is the correct economic interpretation (zero trade share).
-2. **Trade floor** in `build_cubes_itpd.m`: `Xijs3D = max(Xijs3D, mean(positive_values) * 1e-12)`. This fills zero entries with a negligibly small positive value, ensuring all denominators are strictly positive.
-
-**Lesson:** Any dataset with sparse trade flows (ITPD-S, ICIO to some degree) will produce `0/0` in share computations. Always add `max(denominator, eps)` guards in every division. The trade floor is a belt-and-suspenders measure.
-
-### 8. Trade Floor Creates Dense but Ill-Conditioned Cubes
-
-**The mistake:** The trade floor (`mean * 1e-12`) fills ALL zero entries in the N x N x S cube with a tiny positive value. For N=135, S=154, the cube has ~2.8M entries, of which ~2.1M were genuine zeros that got filled. This created a dense matrix where most entries are negligibly small but non-zero.
-
-**Impact:** The filled entries create tiny lambda_jik values (e.g. 1e-15) that produce near-zero derivatives in the Jacobian, worsening the condition number. However, the trade floor is necessary for the denominator guards to work correctly (it ensures `sum_j(X_jik) > 0` so that `sum_j(lambda_jik) = 1`).
-
-**Current status:** The trade floor remains in the code. It does not prevent convergence for `uniform_4` elasticities (the solver converges in 8 iterations even with N=135, S=154). Its impact on the WIOD in-sample elasticities (mapped to ITPD) is unclear and requires further investigation.
-
-**Lesson:** Filling zeros with tiny values is a double-edged sword. It prevents NaN but degrades conditioning. A better approach (not yet implemented) would be to handle zero-trade sectors explicitly in the equations, setting `lambda = 0` and skipping those terms entirely.
-
----
-
-## ITPD-S Integration: Challenges and Status
-
-### What Works
-
-**ITPD-S + uniform_4 (sigma=4 everywhere):** Fully working. N=135 countries, S=154 sectors, converges in 8 iterations (exitflag=3), mean welfare -2.27%. Total runtime ~395 seconds (dominated by the 3.5-minute data loading step where awk filters 305M CSV rows).
-
-### What Does Not Work
-
-**ITPD-S + WIOD in-sample elasticities (heterogeneous, mapped via concordance):** The Nash solver does not converge. The residual `||f(x)||^2` drops rapidly in the first few iterations (from ~1.7e14 to ~1e10) but then stalls, creeping down by < 1% per iteration for hundreds of iterations. Note: the ITPD-specific in-sample elasticities (`IS` on ITPD) do converge.
-
-### Debugging Attempts and Findings
-
-#### Attempt 1: Direct Run (S=154, N=135)
-- **Result:** Solver stalled at `||f||^2 ~ 5e9` after 200+ iterations.
-- **Diagnosis:** The trust region shrank to ~0.01 and the solver alternated between accepted and rejected steps with minimal progress. First-order optimality alternated between ~1e10 and ~1e11, suggesting two groups of equations with different scales.
-
-#### Attempt 2: Collapse Sectors to S=16
-- **Rationale:** Since the WIOD in-sample elasticities only have 16 native values, mapping them to 154 sectors creates redundancy (many sectors share the same elasticity). Collapsing ITPD-S to 16 sectors via the concordance should produce a smaller, better-conditioned problem.
-- **Implementation:** Added `cfg.itpd_sector_collapse = 'wiod_16'` option. Uses the transpose of `wiod16_to_itpd` concordance to aggregate trade flows: `Xjik_16(:,:,w) = sum(Xjik_154(:,:,s))` for all s mapping to WIOD sector w.
-- **Result:** Same convergence failure. `||f||^2` dropped from 1.7e14 to ~4.5e9 in ~220 iterations but continued to stall. Collapsing sectors reduced per-iteration cost (~10x faster function evaluations) but did not fix the convergence issue.
-
-#### Attempt 3: Relaxed Tolerances
-- **Rationale:** The tight tolerances (TolFun=1e-12) might prevent the solver from accepting an adequate solution.
-- **Result:** With TolFun=1e-8, the solver still did not converge because trust-region-dogleg's exit criterion requires `||f||_inf < sqrt(TolFun) = 1e-4`, and the maximum residual remained > 0.1.
-
-#### Attempt 4: Country Trimming (N=66)
-- **Rationale:** N=66 (0.1% trade threshold) worked for uniform_4. Testing WIOD in-sample elasticities at N=66.
-- **Result:** Same convergence failure even at N=66 with WIOD in-sample elasticities. The issue is specific to heterogeneous elasticities, not to the number of countries.
-
-### Root Cause Analysis
-
-The convergence failure with WIOD in-sample elasticities on ITPD-S is caused by a combination of factors:
-
-1. **Heterogeneous elasticities create a stiff system:** The WIOD in-sample elasticities range from epsilon=0.47 (food) to epsilon=14.94 (chemicals), a 30x ratio. This means the optimal tariff formula (ERR3) has very different sensitivity across sectors. Small changes in wages or incomes cause large changes in some sector-specific trade shares but negligible changes in others, creating a stiff Jacobian.
-
-2. **ITPD-S data has different sparsity structure than WIOD/ICIO:** WIOD is a dense balanced IO table (all entries positive by construction). ICIO is moderately sparse. ITPD-S is very sparse: many country pairs have zero trade in most sectors. The trade floor fills these with tiny values that create near-zero lambda entries with near-zero Jacobian rows.
-
-3. **The issue does not arise with uniform elasticities:** When sigma=4 everywhere, the optimal tariff formula simplifies because all sectors respond identically to price changes. The stiffness from heterogeneous elasticities disappears.
-
-4. **The issue does not arise with WIOD or ICIO:** These datasets have fewer sectors (16 or 28) and denser trade matrices, so the Jacobian is better conditioned.
-
-### Debugging
-
-To investigate, build ITPD cubes via `tariffwar.pipeline.build_all('dataset', 'itpd', 'years', 2019)` and use the resulting `mat/ITPD2019.mat` with `tariffwar.solver.nash_equations` directly.
-
-### Possible Directions for Future Investigation
-
-1. **Analytical Jacobian:** The current solver uses finite-difference Jacobian approximation (3N+1 function evaluations per iteration). Providing an analytical Jacobian would improve convergence by orders of magnitude for stiff systems. The Jacobian of `nash_equations` can be derived from the CES demand structure.
-
-2. **Sector-specific solver:** Instead of solving all 3N equations simultaneously, decompose the problem by sector or by country group to reduce conditioning issues.
-
-3. **Proper zero-trade handling:** Replace the trade floor with explicit zero handling: if `lambda_jik = 0`, skip that term in all sums. This avoids creating tiny-but-nonzero Jacobian entries that degrade conditioning.
-
-4. **ROW aggregation:** Currently, the ITPD-S country filter simply drops small countries. Their trade with retained countries is lost, distorting import shares. A proper implementation would aggregate dropped countries into a Rest-of-World composite, preserving total trade volumes.
-
----
-
-## Download Pipeline
-
-`tariffwar.io.download_all` orchestrates all five data sources. Each step is idempotent (skips if data is already present) and uses per-file checks to detect missing or corrupt files.
-
-| Source | Host | Size | Method |
-|--------|------|------|--------|
-| WIOD | DataverseNL | ~877 MB | `robust_download` → Python xlsb→csv |
-| ICIO | OECD | ~500 MB (2 ZIPs) | `robust_download` → unzip |
-| ITPD-S | USITC | ~1 GB | `robust_download` (cookie handshake) |
-| Tariffs | Dropbox | ~240 KB .7z | Browser download → py7zr extract |
-| GDP | World Bank API | ~2 MB | `webread` (JSON API) |
-
-**CDN anti-bot handling:** Many servers (USITC, DataverseNL) use Akamai CDN, which blocks MATLAB's `websave` with HTTP 403. The shared helper `robust_download.m` handles this automatically:
-1. Tries `websave` (works for OECD, World Bank)
-2. Falls back to `curl` with a cookie handshake — visits the parent directory first to acquire a session cookie, then downloads with that cookie
-
-**Dropbox (Teti GTD tariffs):** Dropbox blocks all programmatic downloads (including curl, Python requests, and headless browsers). The download function opens the Dropbox page in your default browser, then polls for the `.7z` file to appear in `~/Downloads`. Once detected, it auto-moves the file and extracts with Python `py7zr`.
-
-**WIOD XLSB conversion:** MATLAB's `readmatrix` for `.xlsb` requires Excel for Windows. The pipeline uses Python (`pandas` + `pyxlsb`) for portable conversion on all platforms.
-
----
-
-## Quick Start Examples
-
-### Reproduce WIOD Results (Table 1 of the Paper)
-```matlab
-result = tariffwar.pipeline.run('wiod', 2014, 'IS')
-% result.pct_change: 44x1 vector of % welfare changes
-% result.countries:  44x1 cell of country names
-```
-
-### Run on OECD ICIO with Uniform Elasticity
-```matlab
-result = tariffwar.pipeline.run('icio', 2019, 'U4')
-```
-
-### Run Everything (all datasets, all years, all elasticities)
-```matlab
-tariffwar.main
-% Equivalent to:
-% tariffwar.pipeline.run({'wiod','icio','itpd'}, 2000:2022, {'IS','U4','CP','BSY','GYY','Shap','FGO','LL'})
-% Years without data are skipped automatically.
-% Output: +tariffwar/results/results.csv
-```
-
-### Rebuild Data from Raw CSVs
-```matlab
-tariffwar.pipeline.build_all('dataset', 'wiod')             % rebuild WIOD only
-tariffwar.pipeline.build_all('dataset', 'icio', 'years', 2020:2022)  % specific years
-```
-
-### Load a Prebuilt Data File
-```matlab
-d = tariffwar.io.load_data('wiod', 2014);
-% d.Xjik_3D, d.tjik_3D, d.sigma, d.N, d.S, d.countries
-```
+Timmer, M.P., Dietzenbacher, E., Los, B., Stehrer, R., and de Vries, G.J. (2015). "An Illustrated User Guide to the World Input-Output Database: The Case of Global Automotive Production." *Review of International Economics*, 23(3), 575--605.

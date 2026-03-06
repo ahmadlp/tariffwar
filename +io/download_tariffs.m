@@ -11,7 +11,7 @@ function download_tariffs(data_root, verbose, source)
 %   programmatic downloads, so the function opens your browser, waits for
 %   you to click "Download", and then auto-extracts the archive.
 %
-%   Prerequisites: Python 3 with py7zr (pip3 install py7zr)
+%   Prerequisites: Python 3 with py7zr (pip install py7zr)
 %
 %   See also: tariffwar.io.download_all
 
@@ -33,12 +33,17 @@ end
 
 function download_teti_gtd(data_root, verbose)
 
-    out_dir = fullfile(data_root, 'Data_Preparation_Files', 'Teti_GTD');
+    out_dir = fullfile(data_root, 'tariffs');
     if ~isfolder(out_dir), mkdir(out_dir); end
 
     archive_name = 'isic33_vbeta1-2024-12.7z';
     file_path    = fullfile(out_dir, archive_name);
-    downloads_path = fullfile(getenv('HOME'), 'Downloads', archive_name);
+    if ispc
+        downloads_dir = fullfile(getenv('USERPROFILE'), 'Downloads');
+    else
+        downloads_dir = fullfile(getenv('HOME'), 'Downloads');
+    end
+    downloads_path = fullfile(downloads_dir, archive_name);
 
     % --- Already done? ---
     if ~isempty(dir(fullfile(out_dir, 'tariff_isic33*.csv')))
@@ -65,10 +70,11 @@ function download_teti_gtd(data_root, verbose)
     if isfile(file_path), delete(file_path); end
 
     % --- Pre-flight: py7zr ---
-    [status, ~] = system('python3 -c "import py7zr"');
+    py = find_python();
+    [status, ~] = system(sprintf('%s -c "import py7zr"', py));
     if status ~= 0
         error('tariffwar:io:missingPy7zr', ...
-            'py7zr required: pip3 install py7zr');
+            'py7zr required: pip install py7zr');
     end
 
     % --- Open browser for manual download ---
@@ -77,7 +83,7 @@ function download_teti_gtd(data_root, verbose)
                   '?rlkey=4dvoeic1w6f7dg2y9y4cpjlnt0k1rxky&dl=0'];
 
     fprintf('[tariffwar.io] Opening Dropbox page — click "Download" in your browser.\n');
-    system(sprintf('open "%s"', browse_url));
+    web(browse_url, '-browser');
 
     % --- Poll for the .7z to appear ---
     max_wait = 300;          % 5 minutes
@@ -119,17 +125,27 @@ function tf = is_7z(p)
 end
 
 
+function py = find_python()
+    [s, ~] = system('python3 --version');
+    if s == 0, py = 'python3'; return; end
+    [s, ~] = system('python --version');
+    if s == 0, py = 'python'; return; end
+    error('tariffwar:io:noPython', 'Python 3 not found. Install from python.org');
+end
+
+
 function extract_and_cleanup(file_path, out_dir, verbose)
     if verbose
         fprintf('[tariffwar.io] Extracting .7z via py7zr...\n');
     end
+    py = find_python();
     cmd = sprintf( ...
-        'python3 -c "import py7zr; py7zr.SevenZipFile(''%s'',''r'').extractall(''%s'')"', ...
-        strrep(file_path, '''', '\'''''), strrep(out_dir, '''', '\'''''));
+        '%s -c "import py7zr; py7zr.SevenZipFile(''%s'',''r'').extractall(''%s'')"', ...
+        py, strrep(file_path, '''', '\'''''), strrep(out_dir, '''', '\'''''));
     [status, result] = system(cmd);
     if status ~= 0
         error('tariffwar:io:extractFailed', ...
-            'Extraction failed: %s\nInstall: pip3 install py7zr', result);
+            'Extraction failed: %s\nInstall: pip install py7zr', result);
     end
     delete(file_path);
     if verbose

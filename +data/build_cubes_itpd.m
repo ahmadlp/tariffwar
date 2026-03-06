@@ -14,7 +14,7 @@ function cube = build_cubes_itpd(cfg, year)
 
     % --- Find the CSV ---
     search_dirs = { ...
-        fullfile(cfg.data_root, 'Data_Preparation_Files', 'ITPD_Data')};
+        fullfile(cfg.data_root, 'itpd')};
 
     csv_path = '';
     for d = 1:numel(search_dirs)
@@ -36,15 +36,25 @@ function cube = build_cubes_itpd(cfg, year)
 
     if cfg.verbose
         fprintf('[build_cubes_itpd] ITPD-S source: %s\n', csv_path);
-        fprintf('[build_cubes_itpd] Pre-filtering to year %d with awk...\n', year);
     end
 
-    % --- Pre-filter with awk ---
+    % --- Pre-filter with awk (fast) or fall back to MATLAB (slow) ---
     tmp_file = fullfile(tempdir, sprintf('itpd_s_%d.csv', year));
-    awk_cmd = sprintf('awk -F, ''NR==1 || $3==%d'' "%s" > "%s"', year, csv_path, tmp_file);
-    [status, cmdout] = system(awk_cmd);
-    if status ~= 0
-        error('tariffwar:data:awkFailed', 'awk pre-filter failed: %s', cmdout);
+    [awk_ok, ~] = system('awk --version');
+    if awk_ok == 0
+        if cfg.verbose
+            fprintf('[build_cubes_itpd] Pre-filtering to year %d with awk...\n', year);
+        end
+        awk_cmd = sprintf('awk -F, ''NR==1 || $3==%d'' "%s" > "%s"', year, csv_path, tmp_file);
+        [status, cmdout] = system(awk_cmd);
+        if status ~= 0
+            error('tariffwar:data:awkFailed', 'awk pre-filter failed: %s', cmdout);
+        end
+    else
+        if cfg.verbose
+            fprintf('[build_cubes_itpd] awk not found, filtering with MATLAB (slow for large files)...\n');
+        end
+        filter_csv_by_year(csv_path, tmp_file, year, 3);
     end
 
     % --- Read filtered CSV ---
@@ -195,4 +205,24 @@ function col = find_col(vnames, candidates)
     end
     error('tariffwar:data:columnNotFound', ...
         'Could not find column matching: %s', strjoin(candidates, ', '));
+end
+
+
+function filter_csv_by_year(src, dst, year, year_col)
+%FILTER_CSV_BY_YEAR  Pure-MATLAB fallback for awk pre-filtering.
+    fid_in  = fopen(src, 'r');
+    fid_out = fopen(dst, 'w');
+    header  = fgetl(fid_in);
+    fprintf(fid_out, '%s\n', header);
+    yr_str = sprintf('%d', year);
+    while ~feof(fid_in)
+        line = fgetl(fid_in);
+        if ~ischar(line), break; end
+        parts = strsplit(line, ',', 'CollapseDelimiters', false);
+        if numel(parts) >= year_col && strcmp(strtrim(parts{year_col}), yr_str)
+            fprintf(fid_out, '%s\n', line);
+        end
+    end
+    fclose(fid_in);
+    fclose(fid_out);
 end

@@ -22,7 +22,7 @@ function download_itpd(data_root, verbose, variant)
     if nargin < 2, verbose = true; end
     if nargin < 3, variant = '2019'; end
 
-    out_dir = fullfile(data_root, 'Data_Preparation_Files', 'ITPD_Data');
+    out_dir = fullfile(data_root, 'itpd');
     if ~isfolder(out_dir)
         mkdir(out_dir);
     end

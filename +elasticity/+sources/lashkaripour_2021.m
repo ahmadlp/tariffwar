@@ -8,11 +8,11 @@ function raw = lashkaripour_2021()
 %     .sectors  - 16x1 cell array of sector labels
 %
 %   Source: Lashkaripour (2021) "Cost of a Global Tariff War"
-%   Table values from SECTORAL_TRADE_ELASTICITY.csv in replication files.
+%   Table values from Lashkaripour (2021, JIE).
 %
 %   Classification: wiod_16 (15 goods + 1 services)
 
-    % Epsilon values from SECTORAL_TRADE_ELASTICITY.csv
+    % Epsilon values from Lashkaripour (2021, JIE)
     % Sectors 1-15: goods (agriculture, mining, manufacturing)
     % Sector 16: services (aggregate)
     raw.epsilon = [ ...

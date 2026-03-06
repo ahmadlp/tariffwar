@@ -22,7 +22,7 @@ function download_icio(data_root, verbose)
     end
     if nargin < 2, verbose = true; end
 
-    out_dir = fullfile(data_root, 'Data_Preparation_Files', 'ICIO_Data');
+    out_dir = fullfile(data_root, 'icio');
     if ~isfolder(out_dir)
         mkdir(out_dir);
     end
