@@ -2,7 +2,7 @@ function [ceq] = nash_equations(X, N ,S, Yi3D, Ri3D, e_ik3D, sigma_k3D, lambda_j
 %TARIFFWAR.SOLVER.NASH_EQUATIONS  System of equations for the Nash tariff war equilibrium.
 %
 %   Defines the nonlinear system F(X)=0 whose root gives the Nash equilibrium.
-%   Implements Equations 6, 7, and 14 from Lashkaripour (2021, AER).
+%   Implements Equations 6, 7, and 14 from Lashkaripour (2021, JIE).
 %
 %   The system has 3N unknowns packed into vector X:
 %     X(1:N)       - wi_h:  wage changes (hat algebra)

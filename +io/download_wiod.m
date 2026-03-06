@@ -14,7 +14,7 @@ function download_wiod(data_root, verbose)
 %   requires Excel for Windows and is not portable.
 %
 %   Prerequisites: Python 3 with pandas and pyxlsb packages.
-%     pip3 install pandas pyxlsb
+%     pip install pandas pyxlsb
 %
 %   See also: tariffwar.io.download_all
 
@@ -23,7 +23,7 @@ function download_wiod(data_root, verbose)
     end
     if nargin < 2, verbose = true; end
 
-    out_dir = fullfile(data_root, 'Data_Preparation_Files', 'WIOD_Data');
+    out_dir = fullfile(data_root, 'wiod');
     if ~isfolder(out_dir)
         mkdir(out_dir);
     end
@@ -117,12 +117,13 @@ function download_wiod(data_root, verbose)
 
         % Use Python with pandas + pyxlsb for portable xlsb reading
         % Data starts at row 7 (skip 6 header rows), column E (drop first 4 columns)
+        py = find_python();
         py_cmd = sprintf([ ...
-            'python3 -c "' ...
+            '%s -c "' ...
             'import pandas as pd; ' ...
             'df = pd.read_excel(''%s'', engine=''pyxlsb'', header=None, skiprows=6); ' ...
             'df.iloc[:, 4:].to_csv(''%s'', index=False, header=False)' ...
-            '"'], strrep(xlsb_path, '''', '\'''), strrep(csv_path, '''', '\'''));
+            '"'], py, strrep(xlsb_path, '''', '\'''), strrep(csv_path, '''', '\'''));
 
         [status, result] = system(py_cmd);
         if status ~= 0
@@ -130,7 +131,7 @@ function download_wiod(data_root, verbose)
                 ['Failed to convert %s to CSV.\n' ...
                  'Python output: %s\n' ...
                  'Ensure Python 3 with pandas and pyxlsb is installed:\n' ...
-                 '  pip3 install pandas pyxlsb'], ...
+                 '  pip install pandas pyxlsb'], ...
                 xlsb_files(i).name, result);
         end
 
@@ -145,4 +146,13 @@ function download_wiod(data_root, verbose)
     if verbose
         fprintf('[tariffwar.io] WIOD data downloaded and converted to CSV: %s\n', out_dir);
     end
+end
+
+
+function py = find_python()
+    [s, ~] = system('python3 --version');
+    if s == 0, py = 'python3'; return; end
+    [s, ~] = system('python --version');
+    if s == 0, py = 'python'; return; end
+    error('tariffwar:io:noPython', 'Python 3 not found. Install from python.org');
 end

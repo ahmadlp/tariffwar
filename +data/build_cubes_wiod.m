@@ -20,7 +20,7 @@ function cube = build_cubes_wiod(cfg, year)
     end
 
     % --- Step 1: Read raw WIOD CSV ---
-    csv_path = fullfile(cfg.data_root, 'Data_Preparation_Files', 'WIOD_Data', ...
+    csv_path = fullfile(cfg.data_root, 'wiod', ...
         sprintf('WIOT%d.csv', year));
     if ~isfile(csv_path)
         error('tariffwar:data:csvNotFound', 'WIOD CSV not found: %s', csv_path);
@@ -31,7 +31,7 @@ function cube = build_cubes_wiod(cfg, year)
     [Z, F, ~] = tariffwar.data.inventory_correct(DATA, N_raw, S_raw);
 
     % --- Step 3: Sector aggregation (56 → 16) ---
-    agg_path = fullfile(cfg.data_root, 'Data_Preparation_Files', 'Baseline_Model', ...
+    agg_path = fullfile(cfg.data_root, 'metadata', ...
         'AGG_S_16.csv');
     [Z, F, R, N, S] = tariffwar.data.aggregate_sectors(Z, F, N_raw, S_raw, agg_path);
 
@@ -43,7 +43,7 @@ function cube = build_cubes_wiod(cfg, year)
 
     % --- Step 6: Get country list ---
     countries = {};
-    cpath = fullfile(cfg.data_root, 'Country_List.xlsx');
+    cpath = fullfile(cfg.data_root, 'metadata', 'Country_List.xlsx');
     if isfile(cpath)
         countries = readcell(cpath);
         if size(countries, 2) > 1, countries = countries(:, 1); end
