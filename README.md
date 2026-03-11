@@ -1,11 +1,15 @@
 # tariffwar
 
-`tariffwar` is a MATLAB package for solving Nash equilibrium tariffs in a multi-country, multi-sector trade model and reporting the welfare effects of a global tariff war. It ships with prebuilt `.mat` files for WIOD, ICIO and ITPD, so a new user can run the simulator in minutes without downloading raw data.
+`tariffwar` is a MATLAB package for solving Nash equilibrium tariffs in a multi-country, multi-sector trade model and reporting the welfare effects of a global tariff war.
 
-The package now has two entry paths:
+The repository includes:
 
-- Quickstart: run the simulator from bundled data and write `results/results.csv`.
-- Optional map export: add `'save_map', true` to save a static world welfare map alongside the CSV.
+- MATLAB package code under `+tariffwar/`
+- bundled `.mat` files for WIOD, ICIO, and ITPD in `mat/`
+- example scripts in `examples/`
+- optional static world-map export alongside the CSV output
+
+You can run the simulator from the bundled data without rebuilding the raw sources.
 
 ## What It Covers
 
@@ -20,7 +24,7 @@ The package includes eight elasticity specifications:
 
 ## Data Sources
 
-The simulator is built on five public data sources. The bundled `mat/` files let users run the package without rebuilding from these raw inputs, but the sources themselves should be cited when results are reported.
+The simulator is built on five underlying data sources. The bundled `mat/` files let users run the package without rebuilding from those raw inputs, but the sources themselves should be cited when results are reported.
 
 | Source | Coverage in `tariffwar` | Citation |
 | --- | --- | --- |
@@ -75,7 +79,7 @@ addpath(pwd)
 
 ## One-Minute Quickstart
 
-This path uses the bundled `mat/` files and bundled GDP lookup. It does not download raw data.
+This example uses the bundled `mat/` files and bundled GDP lookup. It does not download raw data.
 
 ```matlab
 addpath(pwd)
@@ -92,7 +96,7 @@ On a recent machine, `wiod` / `2014` / `IS` finishes in a few seconds.
 
 ## Expected Output
 
-The quickstart writes:
+This run writes:
 
 - `results/results.csv`
 
@@ -206,7 +210,7 @@ Notes:
 
 - `tariffwar.pipeline.run` not found: make sure MATLAB is in the repository root when you call `addpath(pwd)`. Do not add the inner `+tariffwar/` folder directly.
 - `Optimization Toolbox` missing: `fsolve` is required for both the balanced-trade step and the Nash solver.
-- Dollar values are `NaN`: the simulator could not find GDP data. The public quickstart includes a bundled GDP lookup under `support/gdp/`; if you removed it, re-download GDP with `tariffwar.io.download_gdp()`.
+- Dollar values are `NaN`: the simulator could not find GDP data. The repository includes a bundled GDP lookup under `support/gdp/`; if you removed it, re-download GDP with `tariffwar.io.download_gdp()`.
 - A map warning lists omitted countries: that means those codes have no geometry in the local world asset. The solver output is still valid.
 
 ## Platform Notes
@@ -217,7 +221,7 @@ Notes:
 
 ## Main Entry Points
 
-- `tariffwar.pipeline.run`: the public entry point for quick runs and batch runs.
+- `tariffwar.pipeline.run`: the main entry point for quick runs and batch runs.
 - `tariffwar.main`: a batch template for full rebuild workflows. It is not the recommended quickstart.
 
 ## Reference
