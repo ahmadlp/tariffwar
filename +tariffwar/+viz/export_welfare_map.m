@@ -57,12 +57,12 @@ function output_file = export_welfare_map(countries, pct_change, varargin)
 
     rectangle(ax, ...
         'Position', [1, 1, world.width - 2, world.height - 2], ...
-        'FaceColor', [1, 1, 1], ...
-        'EdgeColor', rgb('#e0e0e0'), ...
+        'FaceColor', rgb('#fafafa'), ...
+        'EdgeColor', rgb('#d8d8d8'), ...
         'LineWidth', 1.0);
 
-    no_data_color = rgb('#f0f0f0');
-    no_data_edge = rgb('#e0e0e0');
+    no_data_color = rgb('#c8c8c8');
+    no_data_edge = rgb('#a8a8a8');
     data_edge = [1, 1, 1];
 
     for i = 1:numel(world.features)
@@ -160,10 +160,72 @@ function polygons = normalize_polygons(polygons)
         polygons = {};
         return;
     end
-    if iscell(polygons)
+
+    if isnumeric(polygons)
+        if isempty(polygons)
+            polygons = {};
+            return;
+        end
+
+        dims = size(polygons);
+        if ismatrix(polygons)
+            polygons = {coerce_ring(polygons)};
+            return;
+        end
+
+        if ndims(polygons) == 3 && dims(3) == 2
+            out = cell(dims(1), 1);
+            for i = 1:dims(1)
+                out{i} = coerce_ring(squeeze(polygons(i, :, :)));
+            end
+            polygons = out;
+            return;
+        end
+
+        if dims(end) ~= 2
+            error('tariffwar:viz:invalidPolygonShape', ...
+                'Expected polygon coordinates with two columns, got %s.', ...
+                mat2str(size(polygons)));
+        end
+
+        polygons = {coerce_ring(reshape(polygons, [], 2))};
         return;
     end
-    polygons = {polygons};
+
+    if iscell(polygons)
+        flat = {};
+        for i = 1:numel(polygons)
+            nested = normalize_polygons(polygons{i});
+            if ~isempty(nested)
+                flat = [flat; nested(:)]; %#ok<AGROW>
+            end
+        end
+        polygons = flat;
+        return;
+    end
+
+    error('tariffwar:viz:unsupportedPolygonType', ...
+        'Unsupported polygon container type: %s', class(polygons));
+end
+
+
+function ring = coerce_ring(ring)
+    ring = squeeze(ring);
+    if isempty(ring)
+        ring = zeros(0, 2);
+        return;
+    end
+    if isvector(ring)
+        ring = reshape(ring, [], 2);
+    end
+    if size(ring, 2) ~= 2 && size(ring, 1) == 2
+        ring = ring.';
+    end
+    if size(ring, 2) ~= 2
+        error('tariffwar:viz:invalidRingShape', ...
+            'Expected ring coordinates with two columns, got %s.', ...
+            mat2str(size(ring)));
+    end
 end
 
 
@@ -220,7 +282,7 @@ function draw_legend(ax, width, height)
         rgb('#f5d0d0'), '1-3%'
         rgb('#fae6e6'), '0-1%'
         rgb('#5782a5'), 'Gain'
-        rgb('#f0f0f0'), 'No data'
+        rgb('#c8c8c8'), 'No data'
     };
 
     box_width = 165;
