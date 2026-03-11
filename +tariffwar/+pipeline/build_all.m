@@ -10,7 +10,7 @@ function build_all(varargin)
 %     - Teti GTD tariffs (tjik_3D)
 %     - All elasticity sources (sigma struct with one field per source)
 %
-%   Output: +tariffwar/mat/WIOD2014.mat, ICIO2020.mat, ITPD2005.mat, etc.
+%   Output: mat/WIOD2014.mat, ICIO2020.mat, ITPD2005.mat, etc.
 %
 %   No intermediate files are produced.
 %
@@ -25,8 +25,7 @@ function build_all(varargin)
     verbose = p.Results.verbose;
 
     % Output directory
-    pkg_root = fileparts(fileparts(mfilename('fullpath')));
-    outdir   = fullfile(pkg_root, 'mat');
+    outdir = fullfile(tariffwar.repo_root(), 'mat');
     if ~isfolder(outdir), mkdir(outdir); end
 
     % Config for data loading

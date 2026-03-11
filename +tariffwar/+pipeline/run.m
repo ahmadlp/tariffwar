@@ -36,7 +36,9 @@ function results = run(datasets, years, elasticities, varargin)
 %     'TolX'               - step tolerance (default: 1e-8)
 %     'Display'            - solver display (default: 'iter')
 %     'T0_scale'           - [wi, Yi, tjik] initial guess (default: [0.9, 1.1, 1.25])
-%     'output_file'        - CSV path (default: +tariffwar/results/results.csv)
+%     'output_file'        - CSV path (default: results/results.csv)
+%     'save_map'           - save a static welfare map per run (default: false)
+%     'map_output_dir'     - map output directory (default: results/maps)
 %     'max_retries'        - restart attempts with random T0 (default: 3)
 %     'stall_window'       - iterations before stall check (default: 3)
 %     'min_progress'       - min relative ||F|| decrease (default: 0.10)
@@ -47,8 +49,9 @@ function results = run(datasets, years, elasticities, varargin)
 
     % Load defaults, override from varargin
     cfg = tariffwar.defaults();
-    pkg_root = fileparts(fileparts(mfilename('fullpath')));
-    output_file = fullfile(pkg_root, 'results', 'results.csv');
+    output_file = fullfile(cfg.results_dir, 'results.csv');
+    save_map = false;
+    map_output_dir = fullfile(cfg.results_dir, 'maps');
     for i = 1:2:numel(varargin)
         switch varargin{i}
             case 'Algorithm',          cfg.solver.algorithm = varargin{i+1};
@@ -63,6 +66,8 @@ function results = run(datasets, years, elasticities, varargin)
                 cfg.solver.T0_scale.Yi = v(2);
                 cfg.solver.T0_scale.tjik = v(3);
             case 'output_file',        output_file = varargin{i+1};
+            case 'save_map',           save_map = varargin{i+1};
+            case 'map_output_dir',     map_output_dir = varargin{i+1};
             case 'max_retries',        cfg.solver.max_retries = varargin{i+1};
             case 'stall_window',       cfg.solver.stall_window = varargin{i+1};
             case 'min_progress',       cfg.solver.min_progress = varargin{i+1};
@@ -87,11 +92,13 @@ function results = run(datasets, years, elasticities, varargin)
     % Open CSV
     out_dir = fileparts(output_file);
     if ~isempty(out_dir) && ~isfolder(out_dir), mkdir(out_dir); end
+    if save_map && ~isfolder(map_output_dir), mkdir(map_output_dir); end
     fid = fopen(output_file, 'w');
     fprintf(fid, 'Country,Year,Dataset,Elasticity,Percent_Change,Dollar_Change,Real_GDP,Exitflag\n');
 
     % === Main loop ===
     all_results = {};
+    map_files = {};
     for di = 1:numel(datasets)
       ds = datasets{di};
       for yi = 1:numel(years)
@@ -158,6 +165,18 @@ function results = run(datasets, years, elasticities, varargin)
             fprintf('ef=%d iter=%d mean=%.3f%% total_cost=$%.1fB\n', ...
                 ef, out.iterations, mean(pct), total_cost/1e9);
 
+            map_file = '';
+            if save_map
+                map_file = fullfile(map_output_dir, sprintf( ...
+                    'welfare_map_%s_%d_%s.png', lower(ds), yr, elas(ei).abbrev));
+                tariffwar.viz.export_welfare_map(d.countries, pct, ...
+                    'output_file', map_file, ...
+                    'dataset', ds, ...
+                    'year', yr, ...
+                    'elasticity', elas(ei).abbrev);
+                map_files{end+1} = map_file; %#ok<AGROW>
+            end
+
             % Write CSV rows
             for ci = 1:N
                 c = d.countries{ci};
@@ -170,9 +189,12 @@ function results = run(datasets, years, elasticities, varargin)
             end
 
             all_results{end+1} = struct('dataset', ds, 'year', yr, ...
-                'elasticity', elas(ei).name, 'pct_change', pct, ...
+                'elasticity', elas(ei).name, ...
+                'elasticity_abbrev', elas(ei).abbrev, ...
+                'pct_change', pct, ...
                 'dollar_change', dollar_change, 'country_gdp', country_gdp, ...
-                'exitflag', ef, 'countries', {d.countries}); %#ok<AGROW>
+                'exitflag', ef, 'countries', {d.countries}, ...
+                'map_file', map_file); %#ok<AGROW>
         end
       end
     end
@@ -182,12 +204,14 @@ function results = run(datasets, years, elasticities, varargin)
 
     % Return
     results.csv_file = output_file;
+    results.map_files = map_files;
     results.runs     = all_results;
     if numel(all_results) == 1
         results.pct_change    = all_results{1}.pct_change;
         results.dollar_change = all_results{1}.dollar_change;
         results.exitflag      = all_results{1}.exitflag;
         results.countries     = all_results{1}.countries;
+        results.map_file      = all_results{1}.map_file;
     end
 end
 

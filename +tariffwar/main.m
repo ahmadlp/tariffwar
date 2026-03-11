@@ -1,13 +1,19 @@
 function main()
-%TARIFFWAR.MAIN  Run the full pipeline with one click.
+%TARIFFWAR.MAIN  Template for full rebuild-and-batch runs.
 %
 %   tariffwar.main
 %
-%   Step 0: Download raw data (skips if already present)
-%   Step 1: Build .mat files from raw CSVs
-%   Step 2: Analysis — all datasets x years x elasticities
+%   This helper is intended for full project rebuilds, not the public
+%   quickstart. For a fast first run with bundled data, use:
 %
-%   Output: +tariffwar/results/results.csv (one master file)
+%     tariffwar.pipeline.run('wiod', 2014, 'IS')
+%
+%   Batch workflow:
+%     Step 0: Download raw data (skips if already present)
+%     Step 1: Build .mat files from raw CSVs
+%     Step 2: Run a full dataset x year x elasticity grid
+%
+%   Output: results/results.csv (one master file)
 %
 %   Year coverage:
 %     WIOD:  2000-2014  (44 countries, 16 sectors)

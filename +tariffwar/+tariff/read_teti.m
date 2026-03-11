@@ -21,10 +21,10 @@ function T = read_teti(year, varargin)
     parse(p, year, varargin{:});
 
     % --- Find the raw CSV ---
-    pkg_root = fileparts(fileparts(mfilename('fullpath')));  % +tariffwar/
+    repo_root = tariffwar.repo_root();
     if isempty(p.Results.data_root)
-        search_dirs = {fullfile(pkg_root, 'raw_data', 'tariffs'), ...
-                       fullfile(pkg_root, 'raw_data')};
+        search_dirs = {fullfile(repo_root, 'raw_data', 'tariffs'), ...
+                       fullfile(repo_root, 'raw_data')};
     else
         search_dirs = {fullfile(p.Results.data_root, 'tariff data'), ...
                        p.Results.data_root};

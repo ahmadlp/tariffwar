@@ -5,7 +5,9 @@ function gdp_map = load_gdp(data_root)
 %   gdp_map = tariffwar.io.load_gdp(data_root)
 %
 %   Returns a containers.Map keyed by 'ISO3_YYYY' (e.g. 'USA_2014')
-%   with values = GDP in constant 2015 US$ (World Bank WDI).
+%   with values = GDP in constant 2015 US$ (World Bank WDI). The loader
+%   first checks raw_data/gdp/ and then falls back to the bundled
+%   support/gdp/ copy used by the public quickstart.
 %
 %   Used by tariffwar.pipeline.run to convert percent welfare changes
 %   to dollar values:  Dollar_Change = 0.01 * Percent_Change * GDP
@@ -13,10 +15,14 @@ function gdp_map = load_gdp(data_root)
 %   See also: tariffwar.io.download_gdp, tariffwar.pipeline.run
 
     if nargin < 1 || isempty(data_root)
-        data_root = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'raw_data');
+        data_root = fullfile(tariffwar.repo_root(), 'raw_data');
     end
 
     csv_path = fullfile(data_root, 'gdp', 'WDI_GDP_constant2015USD.csv');
+    if ~isfile(csv_path)
+        csv_path = fullfile(tariffwar.repo_root(), 'support', 'gdp', ...
+            'WDI_GDP_constant2015USD.csv');
+    end
     if ~isfile(csv_path)
         error('tariffwar:io:noGDP', ...
             'GDP CSV not found: %s\nRun tariffwar.io.download_gdp() first.', csv_path);

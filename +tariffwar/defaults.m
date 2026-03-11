@@ -3,10 +3,11 @@ function cfg = defaults()
 %
 %   cfg = tariffwar.defaults()
 
-    pkg_root      = fileparts(mfilename('fullpath'));
-    cfg.mat_dir   = fullfile(pkg_root, 'mat');
-    cfg.data_root = fullfile(pkg_root, 'raw_data');
-    cfg.verbose   = true;
+    repo_root       = tariffwar.repo_root();
+    cfg.mat_dir     = fullfile(repo_root, 'mat');
+    cfg.data_root   = fullfile(repo_root, 'raw_data');
+    cfg.results_dir = fullfile(repo_root, 'results');
+    cfg.verbose     = true;
 
     % Nash equilibrium solver
     cfg.solver.TolFun      = 1e-6;

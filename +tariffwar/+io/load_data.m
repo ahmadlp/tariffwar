@@ -29,7 +29,7 @@ function data = load_data(dataset, year, varargin)
     addRequired(p, 'dataset', @ischar);
     addRequired(p, 'year', @isnumeric);
     addParameter(p, 'mat_dir', ...
-        fullfile(fileparts(fileparts(mfilename('fullpath'))), 'mat'), @ischar);
+        fullfile(tariffwar.repo_root(), 'mat'), @ischar);
     parse(p, dataset, year, varargin{:});
 
     fname = fullfile(p.Results.mat_dir, ...

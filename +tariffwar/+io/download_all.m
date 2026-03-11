@@ -20,7 +20,7 @@ function download_all(data_root, verbose)
 %             tariffwar.io.download_gdp
 
     if nargin < 1 || isempty(data_root)
-        data_root = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'raw_data');
+        data_root = fullfile(tariffwar.repo_root(), 'raw_data');
     end
     if nargin < 2, verbose = true; end
 

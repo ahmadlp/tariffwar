@@ -20,8 +20,7 @@ function patch_insample(varargin)
     verbose = p.Results.verbose;
     ds_filter = p.Results.dataset;
 
-    pkg_root = fileparts(fileparts(mfilename('fullpath')));
-    mat_dir  = fullfile(pkg_root, 'mat');
+    mat_dir = fullfile(tariffwar.repo_root(), 'mat');
 
     if ~isfolder(mat_dir)
         error('patch_insample:noMatDir', 'Mat directory not found: %s', mat_dir);

@@ -17,7 +17,7 @@ function download_itpd(data_root, verbose, variant)
 %   See also: tariffwar.io.download_all
 
     if nargin < 1 || isempty(data_root)
-        data_root = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'raw_data');
+        data_root = fullfile(tariffwar.repo_root(), 'raw_data');
     end
     if nargin < 2, verbose = true; end
     if nargin < 3, variant = '2019'; end
