@@ -18,6 +18,46 @@ The package now has two entry paths:
 The package includes eight elasticity specifications:
 `IS`, `U4`, `CP`, `BSY`, `GYY`, `Shap`, `FGO`, and `LL`.
 
+## Data Sources
+
+The simulator is built on five public data sources. The bundled `mat/` files let users run the package without rebuilding from these raw inputs, but the sources themselves should be cited when results are reported.
+
+| Source | Coverage in `tariffwar` | Citation |
+| --- | --- | --- |
+| WIOD 2016 Release | 44 countries, 16 sectors, 2000-2014 | Timmer et al. (2015) |
+| OECD ICIO Extended 2023 | 81 countries, 28 sectors, 2011-2022 | OECD (2023) |
+| USITC ITPD-S R1.1 | 135 countries, 154 sectors, 2000-2019 | Borchert et al. (2022) |
+| Teti Global Tariff Database | Bilateral tariffs, 1988-2021 | Teti (2024) |
+| World Bank WDI | GDP in constant 2015 US$, 1960-present | World Bank (2024) |
+
+Data-source citations:
+
+- **WIOD 2016 Release.** Timmer, M.P., Dietzenbacher, E., Los, B., Stehrer, R., and de Vries, G.J. (2015). "An Illustrated User Guide to the World Input-Output Database: The Case of Global Automotive Production." *Review of International Economics*, 23(3), 575-605. Data: [doi.org/10.34894/PJ2M1C](https://doi.org/10.34894/PJ2M1C).
+- **OECD ICIO Extended 2023.** OECD (2023). Inter-Country Input-Output Tables, 2023 edition. [oecd.org/en/data/datasets/inter-country-input-output-tables.html](https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html).
+- **USITC ITPD-S R1.1.** Borchert, I., Larch, M., Shikher, S., and Yotov, Y.V. (2022). "The International Trade and Production Database for Estimation (ITPD-E)." *International Economics*, 170, 140-166. Data: [usitc.gov/data/gravity/itpds](https://www.usitc.gov/data/gravity/itpds).
+- **Teti Global Tariff Database.** Teti, F. (2024). "30+ Years of Trade Policy: Evidence from 160 Countries." ECARES Working Paper 2024-04.
+- **World Bank WDI.** World Bank (2024). World Development Indicators. Indicator `NY.GDP.MKTP.KD` (GDP, constant 2015 US$). [data.worldbank.org](https://data.worldbank.org).
+
+## Trade Elasticity Sources
+
+`tariffwar` includes eight elasticity sources. When a source uses a different sector classification, the package maps it into the target dataset through the concordance matrices in `+tariffwar/+concordance/`.
+
+| Abbrev | Source | Native sectors | Classification | Citation |
+| --- | --- | --- | --- | --- |
+| `IS` | In-sample, dataset-specific | 16 | WIOD-16 | WIOD: Lashkaripour (2021); ICIO/ITPD: Caliendo-Parro-style trilateral estimation in-package |
+| `U4` | Uniform elasticity | 1 | Uniform | Simonovska and Waugh (2014) |
+| `CP` | Caliendo-Parro | 20 | ISIC Rev. 3 | Caliendo and Parro (2015) |
+| `BSY` | Bagwell-Staiger-Yurukoglu | 49 | SITC Rev. 2 | Bagwell, Staiger, and Yurukoglu (2021) |
+| `GYY` | Giri-Yi-Yilmazkuday | 19 | OECD / ISIC-based mapping | Giri, Yi, and Yilmazkuday (2021) |
+| `Shap` | Shapiro | 13 | HS sections | Shapiro (2016) |
+| `FGO` | Fontagne-Guimbard-Orefice | 19 | TiVA | Fontagne, Guimbard, and Orefice (2022) |
+| `LL` | Lashkaripour-Lugovskyy | 14 | ISIC Rev. 4 | Lashkaripour and Lugovskyy (2023) |
+
+Notes:
+
+- `IS` is not a generic placeholder. For WIOD it follows the in-sample values reported in Lashkaripour (2021). For ICIO and ITPD it is estimated in the package using the Caliendo-Parro trilateral ratio strategy.
+- `U4` is implemented as a uniform trade elasticity of 4, which implies `sigma = 5` in the CES layer used by the solver.
+
 ## Install Or Download
 
 Clone the repository or download the ZIP, then open the repository root in MATLAB. The folder name does not matter.
@@ -185,3 +225,13 @@ Notes:
 The package implements the sufficient-statistics approach in:
 
 Lashkaripour, A. (2021). "The Cost of a Global Tariff War: A Sufficient-Statistics Approach." *Journal of International Economics*, 131, 103489.
+
+Additional elasticity references:
+
+- Bagwell, K., Staiger, R.W., and Yurukoglu, A. (2021). "Multilateral Trade Bargaining: A First Look at the GATT Bargaining Records." *Econometrica*, 89(4), 1723-1764.
+- Caliendo, L. and Parro, F. (2015). "Estimates of the Trade and Welfare Effects of NAFTA." *Review of Economic Studies*, 82(1), 1-44.
+- Fontagne, L., Guimbard, H., and Orefice, G. (2022). "Tariff-Based Product-Level Trade Elasticities." *Journal of International Economics*, 137, 103593.
+- Giri, R., Yi, K.-M., and Yilmazkuday, H. (2021). "Gains from Trade: Does Sectoral Heterogeneity Matter?" *Journal of International Economics*, 129, 103429.
+- Lashkaripour, A. and Lugovskyy, V. (2023). "Profits, Scale Economies, and the Gains from Trade and Industrial Policy." *American Economic Review*, 113(10), 2759-2808.
+- Shapiro, J.S. (2016). "Trade Costs, CO2, and the Environment." *American Economic Journal: Economic Policy*, 8(4), 220-254.
+- Simonovska, I. and Waugh, M.E. (2014). "The Elasticity of Trade: Estimates and Evidence." *Journal of International Economics*, 92(1), 34-50.
