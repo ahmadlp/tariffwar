@@ -48,7 +48,7 @@ Data-source citations:
 
 | Abbrev | Source | Native sectors | Classification | Citation |
 | --- | --- | --- | --- | --- |
-| `IS` | In-sample, dataset-specific | 16 | WIOD-16 | WIOD: Lashkaripour (2021); ICIO/ITPD: Caliendo-Parro-style trilateral estimation in-package |
+| `IS` | In-sample, dataset-specific | 16 | WIOD-16 | WIOD: Lashkaripour (2021); ICIO/ITPD: Caliendo-Parro triple difference estimator implemented in-package |
 | `U4` | Uniform elasticity | 1 | Uniform | Simonovska and Waugh (2014) |
 | `CP` | Caliendo-Parro | 20 | ISIC Rev. 3 | Caliendo and Parro (2015) |
 | `BSY` | Bagwell-Staiger-Yurukoglu | 49 | SITC Rev. 2 | Bagwell, Staiger, and Yurukoglu (2021) |
@@ -59,7 +59,7 @@ Data-source citations:
 
 Notes:
 
-- `IS` is not a generic placeholder. For WIOD it follows the in-sample values reported in Lashkaripour (2021). For ICIO and ITPD it is estimated in the package using the Caliendo-Parro trilateral ratio strategy.
+- `IS` is not a generic placeholder. For WIOD it follows the in-sample values reported in Lashkaripour (2021). For ICIO and ITPD it is estimated in the package using the Caliendo-Parro triple difference estimator.
 - `U4` is implemented as a uniform trade elasticity of 4, which implies `sigma = 5` in the CES layer used by the solver.
 
 ## Install Or Download

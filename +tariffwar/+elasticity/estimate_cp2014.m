@@ -1,19 +1,19 @@
 function results = estimate_cp2014(mat_dir, dataset, years, varargin)
-%TARIFFWAR.ELASTICITY.ESTIMATE_CP2014  Estimate trade elasticities via CP2014 trilateral gravity.
+%TARIFFWAR.ELASTICITY.ESTIMATE_CP2014  Estimate trade elasticities via the Caliendo-Parro triple difference estimator.
 %
 %   results = tariffwar.elasticity.estimate_cp2014(mat_dir, 'icio', 2016:2022)
 %   results = tariffwar.elasticity.estimate_cp2014(mat_dir, 'itpd', 2000:2019)
 %
 %   Pools data across the given years for one dataset, aggregates native
 %   sectors into the 16 broad WIOD sectors, and produces per-sector OLS
-%   estimates using the Caliendo & Parro (2014) trilateral ratio
+%   estimates using the Caliendo-Parro triple difference estimator
 %   identification strategy.
 %
 %   Output is a 16x1 epsilon vector (15 estimated goods + 1 services
 %   assigned fallback). Services sector (16) always gets the fallback
 %   value since tariffs on services are typically zero.
 %
-%   Methodology (Caliendo & Parro 2014 trilateral gravity):
+%   Methodology (Caliendo-Parro triple difference estimator):
 %     1. Aggregate native sectors to 16 WIOD groups (sum trade, avg tariffs)
 %     2. Form all ordered country trilaterals (i < j < n)
 %     3. Dependent variable:  Y = log(Xij*Xjn*Xni / Xji*Xnj*Xin)
