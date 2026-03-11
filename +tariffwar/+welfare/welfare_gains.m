@@ -30,8 +30,6 @@ Ei_h=abs(X(N+1:N+N));     % N x 1 income/expenditure changes (hat)
  tjik_2D = repmat(tjik', N, 1);
  tjik_3D = repmat(eye(N) + tjik_2D.*(eye(N)==0), [1 1 S]) -1 ;
  tjik_h3D = (1+tjik_3D)./(1+tjik_3D_app);  % tariff change relative to factual
- fprintf('Average Nash tariff = %0.2f%% \n',100*mean(tjik_3D(:)) )
-
 % --- Price index change (CES aggregation across exporters) ---
 % AUX0: bilateral trade cost change raised to (1 - sigma)
 AUX0=((tjik_h3D.*wi_h3D).^(1-sigma_k3D));

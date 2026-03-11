@@ -64,7 +64,7 @@ Notes:
 
 ## Install Or Download
 
-Clone the repository or download the ZIP, then open the repository root in MATLAB. The folder name does not matter.
+Clone the repository or download the ZIP, then open the repository root in MATLAB. Use any ordinary folder name, but avoid names that start with `+`, because MATLAB treats those as package directories.
 
 ```bash
 git clone <repo-url> tariffwar
@@ -89,16 +89,28 @@ results = tariffwar.pipeline.run('wiod', 2014, 'IS', 'Display', 'off');
 Or run the checked-in example:
 
 ```matlab
-run(fullfile('examples', 'quickstart.m'))
+run(fullfile('examples', 'WIOD_2014_InSample.m'))
 ```
 
 On a recent machine, `wiod` / `2014` / `IS` finishes in a few seconds.
+
+## Checked-In Examples
+
+The repository includes three small example scripts that cover all three bundled datasets:
+
+- `examples/WIOD_2014_InSample.m`: `wiod` / `2014` / `IS`
+- `examples/ICIO_2022_InSample_WithMap.m`: `icio` / `2022` / `IS` with a welfare map
+- `examples/ITPD_2019_Uniform4.m`: `itpd` / `2019` / `U4`
+
+The `itpd` example is the heaviest of the three because it uses the largest country-sector system.
 
 ## Expected Output
 
 This run writes:
 
 - `results/results.csv`
+
+Each run also prints a modular on-screen summary with tariff statistics, welfare outcomes, solver status, and saved file paths.
 
 For a single run, the returned struct also includes:
 
@@ -124,7 +136,7 @@ Add `'save_map', true` to export a static choropleth that matches the dashboard-
 
 ```matlab
 addpath(pwd)
-results = tariffwar.pipeline.run('wiod', 2014, 'IS', ...
+results = tariffwar.pipeline.run('icio', 2022, 'IS', ...
     'Display', 'off', ...
     'save_map', true);
 ```
@@ -132,13 +144,13 @@ results = tariffwar.pipeline.run('wiod', 2014, 'IS', ...
 Or run:
 
 ```matlab
-run(fullfile('examples', 'quickstart_with_map.m'))
+run(fullfile('examples', 'ICIO_2022_InSample_WithMap.m'))
 ```
 
 This writes:
 
 - `results/results.csv`
-- `results/maps/welfare_map_wiod_2014_IS.png`
+- `results/maps/welfare_map_icio_2022_IS.png`
 
 You can choose a different map directory:
 
